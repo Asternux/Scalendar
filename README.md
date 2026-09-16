@@ -2,7 +2,7 @@
 
 Scalendar V1 是课表图片到日历的全新 Windows 桌面重写。它与旧测试版保持 Git 历史隔离：旧版基线仍在 `main` 与 `v0.0.0-test`，新版本只在 `rewrite/v1` 开发。
 
-当前交付范围是 Milestone 0–7：完成 Python/PySide6/QML 工程骨架、真实 `.scalendar` 项目生命周期、可编辑课程模型、课程列表多选批量操作、学期与节次设置、图片导入与 OpenAI Vision 结构化识别候选、标准 XLSX 导入/导出，以及面向 Apple 日历的 ICS 导出。Windows EXE 构建流程正在补齐；推送和真实地图位置解析暂未实现，这是有意保留的后续阶段。
+当前交付范围是 Milestone 0–8：完成 Python/PySide6/QML 工程骨架、真实 `.scalendar` 项目生命周期、可编辑课程模型、课程列表多选批量操作、学期与节次设置、图片导入与 OpenAI Vision 结构化识别候选、标准 XLSX 导入/导出、面向 Apple 日历的 ICS 导出，以及可复现的 Windows 便携版 EXE 构建流程。推送和真实地图位置解析暂未实现，这是有意保留的后续阶段。
 
 ## 开发环境
 
@@ -75,4 +75,4 @@ src/scalendar/
 | M5 图片识别 | 已完成，checkpoint `35c2a64` |
 | M6 Excel Import / Export | 已完成，checkpoint `bb3bcc080d48` |
 | M7 ICS Export | 已完成，checkpoint `132f0b7f0497` |
-| M8 Windows EXE / 发布流程 | 进行中 |
+| M8 Windows EXE / 发布流程 | 已完成，checkpoint `87b9ec36757c` |
