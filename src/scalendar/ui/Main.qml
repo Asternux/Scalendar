@@ -201,6 +201,7 @@ ApplicationWindow {
                 }
 
                 Text { Layout.fillWidth: true; text: "保存前所有修改只停留在编辑器中，取消不会改变项目。"; color: Theme.muted; font.pixelSize: 11; wrapMode: Text.WordWrap }
+                Text { Layout.fillWidth: true; visible: courseEditor.needsReviewText.length > 0; text: "⚠ AI 未能确认：" + courseEditor.needsReviewText + "。请检查后保存。"; color: Theme.warning; font.pixelSize: 11; wrapMode: Text.WordWrap }
 
                 Text { text: "课程名称"; color: Theme.inkSoft; font.pixelSize: 11 }
                 TextField { id: nameField; Layout.fillWidth: true; placeholderText: "例如：高等数学"; selectByMouse: true; onTextEdited: courseEditor.name = text }

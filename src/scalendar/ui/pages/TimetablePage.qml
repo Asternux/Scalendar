@@ -160,6 +160,7 @@ Page {
                         teacher: model.teacher
                         locationText: model.locationText || ((model.building || "") + " " + (model.room || "")).trim()
                         courseColor: model.color
+                        needsReview: model.needsReviewFields.length > 0
                         onEditRequested: page.editCourse(courseId)
                     }
                 }

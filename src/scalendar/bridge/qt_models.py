@@ -13,6 +13,7 @@ from PySide6.QtCore import QAbstractListModel, QModelIndex, Qt, Slot, QObject, P
 
 from scalendar.core.models import Course, ProjectDocument, Section
 from scalendar.core.timetable_layout import DEFAULT_TIMETABLE_LAYOUT
+from scalendar.recognition.models import CandidateCourse
 
 
 class TimetableLayoutModel(QObject):
@@ -58,6 +59,7 @@ class CourseListModel(QAbstractListModel):
     NotesRole = Qt.UserRole + 15
     RecognitionStatusRole = Qt.UserRole + 16
     CourseColorRole = Qt.UserRole + 17
+    NeedsReviewFieldsRole = Qt.UserRole + 18
 
     _roles = {
         CourseIdRole: b"courseId",
@@ -77,6 +79,7 @@ class CourseListModel(QAbstractListModel):
         NotesRole: b"notes",
         RecognitionStatusRole: b"recognitionStatus",
         CourseColorRole: b"courseColor",
+        NeedsReviewFieldsRole: b"needsReviewFields",
     }
 
     def __init__(self, parent: QObject | None = None) -> None:
@@ -115,6 +118,7 @@ class CourseListModel(QAbstractListModel):
             self.NotesRole: course.notes,
             self.RecognitionStatusRole: course.recognition_status,
             self.CourseColorRole: course.color,
+            self.NeedsReviewFieldsRole: list(course.needs_review_fields),
         }
         return values.get(role)
 
@@ -312,3 +316,90 @@ class SectionListModel(QAbstractListModel):
 
     def all_sections(self) -> list[Section]:
         return list(self._sections)
+
+
+class RecognitionCandidateModel(QAbstractListModel):
+    """Small confirmation-list model; it is not a second course editor."""
+
+    NameRole = Qt.UserRole + 1
+    WeekdayLabelRole = Qt.UserRole + 2
+    ScheduleLabelRole = Qt.UserRole + 3
+    WeekLabelRole = Qt.UserRole + 4
+    LocationTextRole = Qt.UserRole + 5
+    TeacherRole = Qt.UserRole + 6
+    NeedsReviewRole = Qt.UserRole + 7
+    ReviewFieldsRole = Qt.UserRole + 8
+    NotesRole = Qt.UserRole + 9
+
+    _roles = {
+        NameRole: b"name",
+        WeekdayLabelRole: b"weekdayLabel",
+        ScheduleLabelRole: b"scheduleLabel",
+        WeekLabelRole: b"weekLabel",
+        LocationTextRole: b"locationText",
+        TeacherRole: b"teacher",
+        NeedsReviewRole: b"needsReview",
+        ReviewFieldsRole: b"reviewFields",
+        NotesRole: b"notes",
+    }
+    countChanged = Signal()
+
+    def __init__(self, parent: QObject | None = None) -> None:
+        super().__init__(parent)
+        self._courses: list[CandidateCourse] = []
+
+    def roleNames(self) -> dict[int, bytes]:
+        return self._roles
+
+    def rowCount(self, parent: QModelIndex = QModelIndex()) -> int:
+        return 0 if parent.isValid() else len(self._courses)
+
+    @Property(int, constant=False)
+    def count(self) -> int:
+        return len(self._courses)
+
+    def data(self, index: QModelIndex, role: int = Qt.DisplayRole) -> Any:
+        if not index.isValid() or not 0 <= index.row() < len(self._courses):
+            return None
+        course = self._courses[index.row()]
+        weekday_names = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"]
+        weekday_label = weekday_names[course.weekday - 1] if course.weekday and 1 <= course.weekday <= 7 else "待确认星期"
+        section_label = (
+            f"第{course.start_section}–{course.end_section}节"
+            if course.start_section is not None and course.end_section is not None
+            else "节次待确认"
+        )
+        if course.week_pattern == "custom":
+            week_label = "、".join(str(week) for week in course.custom_weeks) + "周"
+        elif course.start_week is not None and course.end_week is not None:
+            pattern = {"all": "每周", "odd": "单周", "even": "双周"}.get(course.week_pattern, "待确认")
+            week_label = f"{course.start_week}–{course.end_week}周（{pattern}）"
+        else:
+            week_label = "周次待确认"
+        values = {
+            self.NameRole: course.name,
+            self.WeekdayLabelRole: weekday_label,
+            self.ScheduleLabelRole: section_label,
+            self.WeekLabelRole: week_label,
+            self.LocationTextRole: course.location_text or "未填写地点",
+            self.TeacherRole: course.teacher or "未填写教师",
+            self.NeedsReviewRole: course.needs_review,
+            self.ReviewFieldsRole: list(course.needs_review_fields),
+            self.NotesRole: course.notes,
+        }
+        return values.get(role)
+
+    def refresh(self, courses: list[CandidateCourse]) -> None:
+        self.beginResetModel()
+        self._courses = list(courses)
+        self.endResetModel()
+        self.countChanged.emit()
+
+    def clear(self) -> None:
+        self.refresh([])
+
+    def candidate_at(self, row: int) -> CandidateCourse | None:
+        return self._courses[row] if 0 <= row < len(self._courses) else None
+
+    def all_candidates(self) -> list[CandidateCourse]:
+        return list(self._courses)

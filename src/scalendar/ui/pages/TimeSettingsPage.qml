@@ -16,6 +16,8 @@ Page {
         semesterNameField.text = appController.semesterName
         firstMondayField.text = appController.firstWeekMonday
         totalWeeksField.text = String(appController.totalWeeks)
+        schoolField.text = appController.school
+        campusField.text = appController.campus
         formDirty = false
     }
 
@@ -53,7 +55,7 @@ Page {
 
             Rectangle {
                 Layout.fillWidth: true
-                Layout.preferredHeight: 176
+                Layout.preferredHeight: 242
                 radius: Theme.radius
                 color: Theme.surface
                 border.color: Theme.border
@@ -68,7 +70,7 @@ Page {
                             text: "保存学期设置"
                             enabled: page.formDirty
                             onClicked: {
-                                if (appController.updateSemester(semesterNameField.text, firstMondayField.text, Number(totalWeeksField.text))) page.formDirty = false
+                                if (appController.updateSemester(semesterNameField.text, firstMondayField.text, Number(totalWeeksField.text)) && appController.updateProjectContext(schoolField.text, campusField.text)) page.formDirty = false
                             }
                             contentItem: Text { text: parent.text; color: parent.enabled ? "white" : Theme.muted; font.pixelSize: 11; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
                             background: Rectangle { radius: 9; color: parent.enabled ? Theme.accent : Theme.surfaceSoft; border.color: Theme.border }
@@ -91,6 +93,20 @@ Page {
                             Layout.preferredWidth: 130
                             Text { text: "总周数（1–60）"; color: Theme.inkSoft; font.pixelSize: 11 }
                             TextField { id: totalWeeksField; Layout.fillWidth: true; inputMethodHints: Qt.ImhDigitsOnly; selectByMouse: true; onTextEdited: page.formDirty = true }
+                        }
+                    }
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 12
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            Text { text: "学校（可选）"; color: Theme.inkSoft; font.pixelSize: 11 }
+                            TextField { id: schoolField; Layout.fillWidth: true; placeholderText: "例如：上海财经大学"; selectByMouse: true; onTextEdited: page.formDirty = true }
+                        }
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            Text { text: "校区（可选）"; color: Theme.inkSoft; font.pixelSize: 11 }
+                            TextField { id: campusField; Layout.fillWidth: true; placeholderText: "例如：武川路校区"; selectByMouse: true; onTextEdited: page.formDirty = true }
                         }
                     }
                     Text { text: "如果缩短周数会影响现有课程，系统会阻止保存，避免静默截断。"; color: Theme.muted; font.pixelSize: 11 }

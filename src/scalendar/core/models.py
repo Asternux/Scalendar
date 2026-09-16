@@ -83,22 +83,28 @@ class Course:
     color: str = "#6C8EF5"
     notes: str = ""
     recognition_status: str = "manual"
+    needs_review_fields: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
-        return {"id": self.id, "name": self.name, "weekday": self.weekday, "start_section": self.start_section, "end_section": self.end_section, "start_week": self.start_week, "end_week": self.end_week, "week_pattern": self.week_pattern, "custom_weeks": list(self.custom_weeks), "teacher": self.teacher, "building": self.building, "room": self.room, "location_text": self.location_text, "color": self.color, "notes": self.notes, "recognition_status": self.recognition_status}
+        return {"id": self.id, "name": self.name, "weekday": self.weekday, "start_section": self.start_section, "end_section": self.end_section, "start_week": self.start_week, "end_week": self.end_week, "week_pattern": self.week_pattern, "custom_weeks": list(self.custom_weeks), "teacher": self.teacher, "building": self.building, "room": self.room, "location_text": self.location_text, "color": self.color, "notes": self.notes, "recognition_status": self.recognition_status, "needs_review_fields": list(self.needs_review_fields)}
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "Course":
         custom_weeks = data.get("custom_weeks", [])
         if not isinstance(custom_weeks, list):
             custom_weeks = []
-        return cls(id=str(data.get("id") or new_id()), name=str(data.get("name", "未命名课程")), weekday=_as_int(data.get("weekday"), 1), start_section=_as_int(data.get("start_section"), 1), end_section=_as_int(data.get("end_section"), 1), start_week=_as_int(data.get("start_week"), 1), end_week=_as_int(data.get("end_week"), 20), week_pattern=str(data.get("week_pattern", "all")), custom_weeks=[_as_int(item, 0) for item in custom_weeks], teacher=str(data.get("teacher", "")), building=str(data.get("building", "")), room=str(data.get("room", "")), location_text=str(data.get("location_text", "")), color=str(data.get("color", "#6C8EF5")), notes=str(data.get("notes", "")), recognition_status=str(data.get("recognition_status", "manual")))
+        needs_review_fields = data.get("needs_review_fields", [])
+        if not isinstance(needs_review_fields, list):
+            needs_review_fields = []
+        return cls(id=str(data.get("id") or new_id()), name=str(data.get("name", "未命名课程")), weekday=_as_int(data.get("weekday"), 1), start_section=_as_int(data.get("start_section"), 1), end_section=_as_int(data.get("end_section"), 1), start_week=_as_int(data.get("start_week"), 1), end_week=_as_int(data.get("end_week"), 20), week_pattern=str(data.get("week_pattern", "all")), custom_weeks=[_as_int(item, 0) for item in custom_weeks], teacher=str(data.get("teacher", "")), building=str(data.get("building", "")), room=str(data.get("room", "")), location_text=str(data.get("location_text", "")), color=str(data.get("color", "#6C8EF5")), notes=str(data.get("notes", "")), recognition_status=str(data.get("recognition_status", "manual")), needs_review_fields=[str(item) for item in needs_review_fields])
 
 
 @dataclass
 class ProjectDocument:
     schema_version: int = SCHEMA_VERSION
     project_name: str = "我的课表"
+    school: str = ""
+    campus: str = ""
     semester: Semester = field(default_factory=Semester)
     sections: list[Section] = field(default_factory=list)
     courses: list[Course] = field(default_factory=list)
@@ -112,7 +118,7 @@ class ProjectDocument:
         return cls(project_name=project_name, sections=sections)
 
     def to_dict(self) -> dict[str, Any]:
-        return {"schema_version": self.schema_version, "project": {"name": self.project_name, "created_at": self.created_at, "updated_at": self.updated_at}, "semester": self.semester.to_dict(), "sections": [section.to_dict() for section in self.sections], "courses": [course.to_dict() for course in self.courses]}
+        return {"schema_version": self.schema_version, "project": {"name": self.project_name, "school": self.school, "campus": self.campus, "created_at": self.created_at, "updated_at": self.updated_at}, "semester": self.semester.to_dict(), "sections": [section.to_dict() for section in self.sections], "courses": [course.to_dict() for course in self.courses]}
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "ProjectDocument":
@@ -121,7 +127,7 @@ class ProjectDocument:
             project = {"name": project}
         raw_sections = data.get("sections") or []
         raw_courses = data.get("courses") or []
-        return cls(schema_version=_as_int(data.get("schema_version"), SCHEMA_VERSION), project_name=str(project.get("name", "我的课表")), semester=Semester.from_dict(data.get("semester")), sections=[Section.from_dict(item) for item in raw_sections if isinstance(item, dict)], courses=[Course.from_dict(item) for item in raw_courses if isinstance(item, dict)], created_at=str(project.get("created_at", _now_iso())), updated_at=str(project.get("updated_at", _now_iso())))
+        return cls(schema_version=_as_int(data.get("schema_version"), SCHEMA_VERSION), project_name=str(project.get("name", "我的课表")), school=str(project.get("school", "")), campus=str(project.get("campus", "")), semester=Semester.from_dict(data.get("semester")), sections=[Section.from_dict(item) for item in raw_sections if isinstance(item, dict)], courses=[Course.from_dict(item) for item in raw_courses if isinstance(item, dict)], created_at=str(project.get("created_at", _now_iso())), updated_at=str(project.get("updated_at", _now_iso())))
 
     def touch(self) -> None:
         self.updated_at = _now_iso()

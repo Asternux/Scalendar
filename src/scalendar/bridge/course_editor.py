@@ -25,6 +25,7 @@ class CourseEditorState(QObject):
     colorChanged = Signal()
     notesChanged = Signal()
     recognitionStatusChanged = Signal()
+    needsReviewTextChanged = Signal()
     hasCourseChanged = Signal()
 
     def __init__(self, parent: QObject | None = None) -> None:
@@ -46,6 +47,7 @@ class CourseEditorState(QObject):
         self._color = "#6C8EF5"
         self._notes = ""
         self._recognition_status = "manual"
+        self._needs_review_fields: list[str] = []
 
     def _set(self, attr: str, value: object, signal: Signal) -> None:
         if getattr(self, attr) != value:
@@ -180,6 +182,10 @@ class CourseEditorState(QObject):
     def recognitionStatus(self, value: str) -> None:
         self._set("_recognition_status", str(value), self.recognitionStatusChanged)
 
+    @Property(str, notify=needsReviewTextChanged)
+    def needsReviewText(self) -> str:
+        return "、".join(self._needs_review_fields)
+
     @Slot(int)
     def setWeekPatternIndex(self, index: int) -> None:
         self.weekPattern = ["all", "odd", "even", "custom"][max(0, min(3, index))]
@@ -216,6 +222,8 @@ class CourseEditorState(QObject):
         self.color = values.color
         self.notes = values.notes
         self.recognitionStatus = values.recognition_status
+        self._needs_review_fields = list(values.needs_review_fields)
+        self.needsReviewTextChanged.emit()
 
     def to_course(self, total_weeks: int) -> Course:
         custom_weeks = parse_custom_weeks(
@@ -240,4 +248,5 @@ class CourseEditorState(QObject):
             color=self._color.strip() or "#6C8EF5",
             notes=self._notes.strip(),
             recognition_status=self._recognition_status or "manual",
+            needs_review_fields=list(self._needs_review_fields),
         )

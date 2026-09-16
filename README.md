@@ -2,7 +2,7 @@
 
 Scalendar V1 是课表图片到日历的全新 Windows 桌面重写。它与旧测试版保持 Git 历史隔离：旧版基线仍在 `main` 与 `v0.0.0-test`，新版本只在 `rewrite/v1` 开发。
 
-当前交付范围是 Milestone 0–4：完成 Python/PySide6/QML 工程骨架、真实 `.scalendar` 项目生命周期、可编辑课程模型、课程列表多选批量操作、学期与节次设置、导航与视觉外壳。识别、Excel/ICS 导出、推送和真实地图位置解析暂未实现，这是有意保留的后续阶段。
+当前交付范围是 Milestone 0–5：完成 Python/PySide6/QML 工程骨架、真实 `.scalendar` 项目生命周期、可编辑课程模型、课程列表多选批量操作、学期与节次设置、导航与视觉外壳，以及图片导入、OpenAI Vision 结构化识别候选和人工确认导入。Excel/ICS 导出、推送和真实地图位置解析暂未实现，这是有意保留的后续阶段。
 
 ## 开发环境
 
@@ -31,7 +31,7 @@ pytest
 scalendar
 ```
 
-当前 GUI 启动后会打开 Home 页面。可以创建空白课表、添加/编辑/删除课程、在课表和课程列表间同步编辑、按星期/节次/名称排序、多选批量修改周次或地点、修改学期设置和节次时间、保存并重新打开 `.scalendar`；当前仍不调用 AI 或写出 Excel/ICS。
+当前 GUI 启动后会打开 Home 页面。可以创建空白课表、添加/编辑/删除课程、在课表和课程列表间同步编辑、按星期/节次/名称排序、多选批量修改周次或地点、修改学期设置和节次时间、保存并重新打开 `.scalendar`。导入页支持 PNG/JPG/JPEG/WEBP 图片选择或拖拽；识别请求不会自动发起，用户点击后才会发送，结果需确认后以新增课程方式导入。详见 [docs/recognition.md](docs/recognition.md)。当前仍不写出 Excel/ICS。
 
 ## 架构
 
@@ -51,7 +51,7 @@ src/scalendar/
 
 ## 用户数据与安全
 
-用户设置和项目文件应写入用户可写目录（例如 `%LOCALAPPDATA%\Scalendar`）或用户选择的目录，不写入 `Program Files`。API Key 不能写入项目、日志或 Git；后续识别设置将在安全存储方案确定后实现。
+用户设置和项目文件应写入用户可写目录（例如 `%LOCALAPPDATA%\Scalendar`）或用户选择的目录，不写入 `Program Files`。API Key 只接受当前运行会话内存中的值，不能写入项目、日志或 Git；关闭程序后需要重新设置。
 
 仓库忽略用户图片、Excel、ICS、`.scalendar`、虚拟环境、构建产物和秘密文件。发布流程见 [docs/release.md](docs/release.md)。
 
@@ -63,7 +63,7 @@ src/scalendar/
 | M1 数据核心与项目读写 | 已实现 |
 | M2 UI 壳层与视觉方向 | 已完成，checkpoint `7d4a5b0036cc` |
 | M3 真实项目数据与手工课表编辑器 | 已完成，checkpoint `ee72e9343c13` |
-| M4 课程列表与时间设置增强 | 已实现，待验收（未提交） |
-| M5 图片识别 | 待开始 |
+| M4 课程列表与时间设置增强 | 已完成，checkpoint `25abd66d180f` |
+| M5 图片识别 | 已实现，待验收（未提交） |
 | M6 Excel Import / Export | 待开始 |
 | M7 ICS Export | 待开始 |

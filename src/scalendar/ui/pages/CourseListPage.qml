@@ -156,6 +156,7 @@ Page {
                 required property string room
                 required property string locationText
                 required property string courseColor
+                required property var needsReviewFields
                 property bool selected: page.isSelected(courseId)
                 width: list.width
                 height: 84
@@ -191,8 +192,8 @@ Page {
                         Layout.fillWidth: true
                         Text { text: name; color: Theme.ink; font.pixelSize: 14; font.bold: true; elide: Text.ElideRight; Layout.fillWidth: true }
                         Text {
-                            text: weekdayLabel(weekday) + " · 第" + startSection + "–" + endSection + "节 · " + weekLabel(startWeek, endWeek, weekPattern, customWeeks)
-                            color: Theme.muted
+                            text: (needsReviewFields.length > 0 ? "⚠ 待确认 · " : "") + weekdayLabel(weekday) + " · 第" + startSection + "–" + endSection + "节 · " + weekLabel(startWeek, endWeek, weekPattern, customWeeks)
+                            color: needsReviewFields.length > 0 ? Theme.warning : Theme.muted
                             font.pixelSize: 11
                             elide: Text.ElideRight
                             Layout.fillWidth: true

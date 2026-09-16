@@ -8,12 +8,17 @@ import os
 from pathlib import Path
 import re
 
-from PySide6.QtCore import QObject, Property, QTimer, Signal, Slot, QUrl
+from PySide6.QtCore import QObject, Property, QRunnable, QThreadPool, QTimer, Signal, Slot, QUrl
+from PySide6.QtGui import QImageReader
 
 from scalendar.bridge.course_editor import CourseEditorState
-from scalendar.bridge.qt_models import CourseListModel, CourseSortProxyModel, SectionListModel, TimetableLayoutModel
+from scalendar.bridge.qt_models import CourseListModel, CourseSortProxyModel, RecognitionCandidateModel, SectionListModel, TimetableLayoutModel
 from scalendar.core.models import Course, ProjectDocument, Section
 from scalendar.core.validation import PATTERNS, TIME_RE, parse_custom_weeks, validate_project
+from scalendar.recognition.base import RecognitionContext, RecognitionError, RecognitionProvider
+from scalendar.recognition.models import RecognitionResult
+from scalendar.recognition.normalizer import candidate_to_course
+from scalendar.recognition.openai_vision import OpenAIVisionProvider, SUPPORTED_IMAGE_TYPES
 from scalendar.storage.project_store import ProjectStore
 
 
@@ -28,6 +33,28 @@ def _slug(value: str) -> str:
     return compact or "untitled"
 
 
+class _RecognitionWorkerSignals(QObject):
+    finished = Signal(object)
+    failed = Signal(object)
+
+
+class _RecognitionWorker(QRunnable):
+    def __init__(self, provider: RecognitionProvider, image: Path, context: RecognitionContext) -> None:
+        super().__init__()
+        self.provider = provider
+        self.image = image
+        self.context = context
+        self.signals = _RecognitionWorkerSignals()
+
+    def run(self) -> None:
+        try:
+            self.signals.finished.emit(self.provider.recognize(self.image, self.context))
+        except RecognitionError as exc:
+            self.signals.failed.emit(exc)
+        except Exception:
+            self.signals.failed.emit(RecognitionError("api_error", "识别服务暂时不可用。"))
+
+
 class AppController(QObject):
     """Own the active project and expose only typed models/state to QML."""
 
@@ -38,8 +65,11 @@ class AppController(QObject):
     projectChanged = Signal()
     dirtyChanged = Signal()
     projectPathChanged = Signal()
+    imageChanged = Signal()
+    recognitionChanged = Signal()
+    apiKeyChanged = Signal()
 
-    def __init__(self) -> None:
+    def __init__(self, recognition_provider: RecognitionProvider | None = None) -> None:
         super().__init__()
         self._project: ProjectDocument | None = None
         self._project_path = ""
@@ -48,6 +78,7 @@ class AppController(QObject):
         self._course_model = CourseListModel(self)
         self._course_sort_model = CourseSortProxyModel(self)
         self._course_sort_model.setSourceModel(self._course_model)
+        self._recognition_candidate_model = RecognitionCandidateModel(self)
         self._section_model = SectionListModel(self)
         self._timetable_layout = TimetableLayoutModel(self)
         self._course_editor = CourseEditorState(self)
@@ -55,10 +86,36 @@ class AppController(QObject):
         self._autosave_timer.setSingleShot(True)
         self._autosave_timer.setInterval(850)
         self._autosave_timer.timeout.connect(self._autosave)
+        self._recognition_provider = recognition_provider or OpenAIVisionProvider()
+        self._recognition_pool = QThreadPool.globalInstance()
+        self._recognition_worker: _RecognitionWorker | None = None
+        self._image_path = Path()
+        self._image_name = ""
+        self._image_preview_url = ""
+        self._image_width = 0
+        self._image_height = 0
+        self._recognition_state = "idle"
+        self._recognition_phase = ""
+        self._recognition_error_text = ""
+        self._pending_recognition: RecognitionResult | None = None
+        self._session_api_key = ""
+        self._session_model = os.environ.get("OPENAI_MODEL", "gpt-5.5")
 
     @Property(str, notify=projectChanged)
     def projectName(self) -> str:
         return self._project.project_name if self._project else "未命名项目"
+
+    @Property(bool, notify=projectChanged)
+    def hasProject(self) -> bool:
+        return self._project is not None
+
+    @Property(str, notify=projectChanged)
+    def school(self) -> str:
+        return self._project.school if self._project else ""
+
+    @Property(str, notify=projectChanged)
+    def campus(self) -> str:
+        return self._project.campus if self._project else ""
 
     @Property(str, notify=projectChanged)
     def semesterName(self) -> str:
@@ -100,6 +157,62 @@ class AppController(QObject):
     def courseEditor(self) -> CourseEditorState:
         return self._course_editor
 
+    @Property(QObject, constant=True)
+    def recognitionCandidateModel(self) -> RecognitionCandidateModel:
+        return self._recognition_candidate_model
+
+    @Property(str, notify=imageChanged)
+    def imageName(self) -> str:
+        return self._image_name
+
+    @Property(str, notify=imageChanged)
+    def imagePreviewUrl(self) -> str:
+        return self._image_preview_url
+
+    @Property(int, notify=imageChanged)
+    def imageWidth(self) -> int:
+        return self._image_width
+
+    @Property(int, notify=imageChanged)
+    def imageHeight(self) -> int:
+        return self._image_height
+
+    @Property(bool, notify=imageChanged)
+    def hasImage(self) -> bool:
+        return bool(self._image_path)
+
+    @Property(str, notify=recognitionChanged)
+    def recognitionState(self) -> str:
+        return self._recognition_state
+
+    @Property(str, notify=recognitionChanged)
+    def recognitionPhase(self) -> str:
+        return self._recognition_phase
+
+    @Property(str, notify=recognitionChanged)
+    def recognitionErrorText(self) -> str:
+        return self._recognition_error_text
+
+    @Property(int, notify=recognitionChanged)
+    def recognitionCourseCount(self) -> int:
+        return len(self._pending_recognition.courses) if self._pending_recognition else 0
+
+    @Property(int, notify=recognitionChanged)
+    def recognitionReviewCount(self) -> int:
+        return self._pending_recognition.review_count if self._pending_recognition else 0
+
+    @Property(bool, notify=apiKeyChanged)
+    def hasApiKey(self) -> bool:
+        return bool(self._session_api_key or os.environ.get("OPENAI_API_KEY", "").strip())
+
+    @Property(str, notify=apiKeyChanged)
+    def apiKeyStatus(self) -> str:
+        return "已设置（仅本次运行）" if self.hasApiKey else "未设置"
+
+    @Property(str, notify=apiKeyChanged)
+    def openaiModel(self) -> str:
+        return self._session_model
+
     @Slot(str)
     def navigate(self, page: str) -> None:
         self.pageRequested.emit(page)
@@ -107,6 +220,200 @@ class AppController(QObject):
     @Slot(int)
     def setCourseSort(self, mode: int) -> None:
         self._course_sort_model.setSortMode(mode)
+
+    @Slot(str, result=bool)
+    def setApiKey(self, value: str) -> bool:
+        self._session_api_key = str(value or "").strip()
+        if hasattr(self._recognition_provider, "api_key"):
+            self._recognition_provider.api_key = self._session_api_key or None
+        self.apiKeyChanged.emit()
+        self.toastRequested.emit("API Key 仅保存在本次运行内存中。")
+        return True
+
+    @Slot(str, result=bool)
+    def setOpenAIModel(self, value: str) -> bool:
+        model = str(value or "").strip()
+        if not model:
+            self.errorRequested.emit("模型名称不能为空。")
+            return False
+        self._session_model = model
+        if hasattr(self._recognition_provider, "model"):
+            self._recognition_provider.model = model
+        self.apiKeyChanged.emit()
+        return True
+
+    @Slot(str, result=bool)
+    def updateProjectContext(self, school: str, campus: str) -> bool:
+        if not self._project:
+            self.errorRequested.emit("请先创建或打开一个项目。")
+            return False
+        self._project.school = str(school or "").strip()
+        self._project.campus = str(campus or "").strip()
+        self.projectChanged.emit()
+        self._set_dirty(True)
+        self.toastRequested.emit("学校与校区信息已更新。")
+        return True
+
+    @Slot(str, result=bool)
+    def selectImage(self, path: str) -> bool:
+        source = _local_path(str(path))
+        if source.suffix.lower() not in SUPPORTED_IMAGE_TYPES:
+            self._set_image_error("图片格式无法读取，请选择 PNG、JPG、JPEG 或 WEBP。")
+            return False
+        if not source.is_file():
+            self._set_image_error("找不到所选图片。")
+            return False
+        reader = QImageReader(str(source))
+        size = reader.size()
+        if not reader.canRead() or size.width() <= 0 or size.height() <= 0:
+            self._set_image_error("图片格式无法读取或图片已损坏。")
+            return False
+        self._image_path = source
+        self._image_name = source.name
+        self._image_preview_url = QUrl.fromLocalFile(str(source)).toString()
+        self._image_width = size.width()
+        self._image_height = size.height()
+        self._pending_recognition = None
+        self._recognition_candidate_model.clear()
+        self._recognition_state = "ready"
+        self._recognition_phase = "已选择图片"
+        self._recognition_error_text = ""
+        self.imageChanged.emit()
+        self.recognitionChanged.emit()
+        return True
+
+    @Slot()
+    def clearImage(self) -> None:
+        self._image_path = Path()
+        self._image_name = ""
+        self._image_preview_url = ""
+        self._image_width = 0
+        self._image_height = 0
+        self._pending_recognition = None
+        self._recognition_candidate_model.clear()
+        self._recognition_state = "idle"
+        self._recognition_phase = ""
+        self._recognition_error_text = ""
+        self.imageChanged.emit()
+        self.recognitionChanged.emit()
+
+    @Slot(result=bool)
+    def startRecognition(self) -> bool:
+        if not self._project:
+            self._set_recognition_error("project_required", "请先创建或打开一个项目。")
+            return False
+        if not self._image_path:
+            self._set_recognition_error("invalid_image", "请先选择一张课表图片。")
+            return False
+        if self._recognition_state == "recognizing":
+            return False
+        provider = self._recognition_provider
+        api_key = self._session_api_key or os.environ.get("OPENAI_API_KEY", "").strip()
+        if provider.requires_api_key and not api_key:
+            self._set_recognition_error("missing_api_key", "未设置 API Key。请先在设置中填写 OpenAI API Key。")
+            return False
+        if hasattr(provider, "api_key"):
+            provider.api_key = api_key or None
+        if hasattr(provider, "model"):
+            provider.model = self._session_model
+        context = RecognitionContext(
+            school=self.school,
+            campus=self.campus,
+            total_weeks=self.totalWeeks,
+            section_indices=tuple(section.index for section in self._project.sections),
+        )
+        self._pending_recognition = None
+        self._recognition_candidate_model.clear()
+        self._recognition_state = "recognizing"
+        self._recognition_phase = "正在读取课表结构……"
+        self._recognition_error_text = ""
+        self.recognitionChanged.emit()
+        worker = _RecognitionWorker(provider, self._image_path, context)
+        worker.signals.finished.connect(self._on_recognition_finished)
+        worker.signals.failed.connect(self._on_recognition_failed)
+        self._recognition_worker = worker
+        self._recognition_pool.start(worker)
+        return True
+
+    @Slot()
+    def cancelRecognition(self) -> None:
+        self._pending_recognition = None
+        self._recognition_candidate_model.clear()
+        self._recognition_state = "ready" if self._image_path else "idle"
+        self._recognition_phase = "已选择图片" if self._image_path else ""
+        self._recognition_error_text = ""
+        self.recognitionChanged.emit()
+
+    @Slot(result=bool)
+    def applyRecognitionResult(self) -> bool:
+        if not self._project or not self._pending_recognition:
+            self.errorRequested.emit("没有可导入的识别结果。")
+            return False
+        section_indices = tuple(section.index for section in self._project.sections)
+        new_courses = [
+            candidate_to_course(candidate, self._project.semester.total_weeks, section_indices)
+            for candidate in self._pending_recognition.courses
+        ]
+        candidate_project = deepcopy(self._project)
+        candidate_project.courses.extend(new_courses)
+        issues = validate_project(candidate_project)
+        if issues:
+            self.errorRequested.emit("识别结果无法导入：" + "；".join(str(issue) for issue in issues))
+            return False
+        self._project.courses.extend(new_courses)
+        for course in new_courses:
+            self._course_model.append_course(course)
+        count = len(new_courses)
+        self._pending_recognition = None
+        self._recognition_candidate_model.clear()
+        self._recognition_state = "ready" if self._image_path else "idle"
+        self._recognition_phase = "识别结果已导入"
+        self._recognition_error_text = ""
+        self._set_dirty(True)
+        self.recognitionChanged.emit()
+        self.pageRequested.emit("timetable")
+        self.toastRequested.emit(f"已向当前课表新增 {count} 门课程。")
+        return True
+
+    def _set_image_error(self, message: str) -> None:
+        self._recognition_state = "error"
+        self._recognition_error_text = message
+        self._recognition_phase = ""
+        self.errorRequested.emit(message)
+        self.imageChanged.emit()
+        self.recognitionChanged.emit()
+
+    def _set_recognition_error(self, code: str, message: str) -> None:
+        self._recognition_state = "error"
+        self._recognition_phase = ""
+        self._recognition_error_text = message
+        self.errorRequested.emit(message)
+        self.recognitionChanged.emit()
+
+    @Slot(object)
+    def _on_recognition_finished(self, result: RecognitionResult) -> None:
+        self._pending_recognition = result
+        self._recognition_candidate_model.refresh(result.courses)
+        self._recognition_state = "ready_to_import"
+        self._recognition_phase = "识别完成，请确认后导入"
+        self._recognition_error_text = ""
+        self.recognitionChanged.emit()
+
+    @Slot(object)
+    def _on_recognition_failed(self, error: RecognitionError) -> None:
+        messages = {
+            "missing_api_key": "未设置 API Key。请先在设置中填写 OpenAI API Key。",
+            "invalid_api_key": "API Key 无效或未授权。",
+            "network": "网络连接失败，请检查网络后重试。",
+            "timeout": "识别请求超时，请稍后重试。",
+            "quota": "API 限额或额度不足。",
+            "model_unavailable": "识别模型不可用，请检查模型配置。",
+            "invalid_image": "图片格式无法读取或图片已损坏。",
+            "output_parse": "模型输出无法解析，请重试或更换图片。",
+            "api_error": "识别服务暂时不可用，请稍后重试。",
+        }
+        code = getattr(error, "code", "api_error")
+        self._set_recognition_error(code, messages.get(code, "识别失败，请稍后重试。"))
 
     @Slot(str, str, str, int, result=bool)
     def createProject(self, project_name: str, semester_name: str, first_week_monday: str, total_weeks: int) -> bool:
@@ -215,6 +522,8 @@ class AppController(QObject):
             ProjectDocument(
                 schema_version=self._project.schema_version,
                 project_name=self._project.project_name,
+                school=self._project.school,
+                campus=self._project.campus,
                 semester=self._project.semester,
                 sections=self._project.sections,
                 courses=[item for item in self._project.courses if item.id != course.id] + [course],
@@ -226,6 +535,9 @@ class AppController(QObject):
             self.errorRequested.emit("课程无法保存：" + "；".join(str(issue) for issue in issues))
             return False
         existing = self._course_model.course_at(course.id)
+        if existing is not None and existing.recognition_status == "needs_review":
+            course.needs_review_fields = []
+            course.recognition_status = "confirmed"
         if existing is None:
             self._project.courses.append(course)
             self._course_model.append_course(course)
@@ -493,6 +805,7 @@ class AppController(QObject):
         self._course_model.refresh(project.courses)
         self._section_model.refresh(project.sections)
         self._course_editor.reset()
+        self.clearImage()
         self.projectChanged.emit()
         self.projectPathChanged.emit()
 

@@ -11,13 +11,14 @@ Item {
     property string teacher: ""
     property string locationText: ""
     property string courseColor: Theme.accent
+    property bool needsReview: false
     signal editRequested(string courseId)
 
     Rectangle {
         anchors.fill: parent
         radius: Theme.radiusSmall
         color: Theme.surface
-        border.color: Theme.border
+        border.color: root.needsReview ? Theme.warning : Theme.border
         border.width: 1
 
         Rectangle {
