@@ -12,6 +12,35 @@ TIME_RE = re.compile(r"^(?:[01]\d|2[0-3]):[0-5]\d$")
 PATTERNS = {"all", "odd", "even", "custom"}
 
 
+def parse_custom_weeks(value: str, total_weeks: int, *, required: bool = False) -> list[int]:
+    """Parse the compact custom-week input used by the editor.
+
+    The parser is deliberately strict so a typo cannot be silently discarded
+    while saving a course. Chinese commas are accepted because they are common
+    in Chinese input methods.
+    """
+
+    text = str(value or "").strip().replace("，", ",")
+    if not text:
+        if required:
+            raise ValueError("自定义周次不能为空")
+        return []
+    tokens = [token.strip() for token in text.split(",")]
+    if any(not token for token in tokens):
+        raise ValueError("自定义周次请使用逗号分隔，例如 1,3,5")
+    weeks: list[int] = []
+    for token in tokens:
+        if not token.isdigit():
+            raise ValueError(f"自定义周次“{token}”不是有效数字")
+        week = int(token)
+        if week < 1 or week > total_weeks:
+            raise ValueError(f"自定义周次必须在 1 到 {total_weeks} 周之间")
+        if week in weeks:
+            raise ValueError(f"自定义周次 {week} 重复")
+        weeks.append(week)
+    return sorted(weeks)
+
+
 @dataclass(frozen=True)
 class ValidationIssue:
     path: str
@@ -67,6 +96,8 @@ def validate_project(project: ProjectDocument) -> list[ValidationIssue]:
             issues.append(ValidationIssue(path, "结束节次不能早于开始节次"))
         if course.start_section not in section_ids or course.end_section not in section_ids:
             issues.append(ValidationIssue(path, "课程使用了未配置的节次"))
+        elif any(section_index not in section_ids for section_index in range(course.start_section, course.end_section + 1)):
+            issues.append(ValidationIssue(path, "课程范围中包含未配置的中间节次"))
         if not 1 <= course.start_week <= semester.total_weeks:
             issues.append(ValidationIssue(f"{path}.start_week", "起始周超出学期范围"))
         if not 1 <= course.end_week <= semester.total_weeks:
@@ -75,6 +106,10 @@ def validate_project(project: ProjectDocument) -> list[ValidationIssue]:
             issues.append(ValidationIssue(path, "结束周不能早于起始周"))
         if course.week_pattern not in PATTERNS:
             issues.append(ValidationIssue(f"{path}.week_pattern", "只支持 all、odd、even、custom"))
+        if course.week_pattern == "custom" and not course.custom_weeks:
+            issues.append(ValidationIssue(f"{path}.custom_weeks", "自定义周次不能为空"))
+        if len(course.custom_weeks) != len(set(course.custom_weeks)):
+            issues.append(ValidationIssue(f"{path}.custom_weeks", "自定义周次不能重复"))
         if any(week < 1 or week > semester.total_weeks for week in course.custom_weeks):
             issues.append(ValidationIssue(f"{path}.custom_weeks", "自定义周必须在学期范围内"))
     return issues

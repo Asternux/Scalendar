@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from datetime import date
+from copy import deepcopy
+from datetime import date, datetime, timedelta
 import os
 from pathlib import Path
 import re
@@ -10,9 +11,9 @@ import re
 from PySide6.QtCore import QObject, Property, QTimer, Signal, Slot, QUrl
 
 from scalendar.bridge.course_editor import CourseEditorState
-from scalendar.bridge.qt_models import CourseListModel, SectionListModel, TimetableLayoutModel
+from scalendar.bridge.qt_models import CourseListModel, CourseSortProxyModel, SectionListModel, TimetableLayoutModel
 from scalendar.core.models import Course, ProjectDocument, Section
-from scalendar.core.validation import TIME_RE, validate_project
+from scalendar.core.validation import PATTERNS, TIME_RE, parse_custom_weeks, validate_project
 from scalendar.storage.project_store import ProjectStore
 
 
@@ -45,6 +46,8 @@ class AppController(QObject):
         self._dirty = False
         self._store = ProjectStore()
         self._course_model = CourseListModel(self)
+        self._course_sort_model = CourseSortProxyModel(self)
+        self._course_sort_model.setSourceModel(self._course_model)
         self._section_model = SectionListModel(self)
         self._timetable_layout = TimetableLayoutModel(self)
         self._course_editor = CourseEditorState(self)
@@ -82,6 +85,10 @@ class AppController(QObject):
         return self._course_model
 
     @Property(QObject, constant=True)
+    def courseSortModel(self) -> CourseSortProxyModel:
+        return self._course_sort_model
+
+    @Property(QObject, constant=True)
     def sectionModel(self) -> SectionListModel:
         return self._section_model
 
@@ -92,6 +99,14 @@ class AppController(QObject):
     @Property(QObject, constant=True)
     def courseEditor(self) -> CourseEditorState:
         return self._course_editor
+
+    @Slot(str)
+    def navigate(self, page: str) -> None:
+        self.pageRequested.emit(page)
+
+    @Slot(int)
+    def setCourseSort(self, mode: int) -> None:
+        self._course_sort_model.setSortMode(mode)
 
     @Slot(str, str, str, int, result=bool)
     def createProject(self, project_name: str, semester_name: str, first_week_monday: str, total_weeks: int) -> bool:
@@ -186,7 +201,16 @@ class AppController(QObject):
         if not self._project:
             self.errorRequested.emit("请先创建或打开一个项目。")
             return False
-        course = self._course_editor.to_course(self._project.semester.total_weeks)
+        try:
+            parse_custom_weeks(
+                self._course_editor.customWeeksText,
+                self._project.semester.total_weeks,
+                required=self._course_editor.weekPattern == "custom",
+            )
+            course = self._course_editor.to_course(self._project.semester.total_weeks)
+        except ValueError as exc:
+            self.errorRequested.emit(f"课程无法保存：{exc}")
+            return False
         issues = validate_project(
             ProjectDocument(
                 schema_version=self._project.schema_version,
@@ -246,6 +270,218 @@ class AppController(QObject):
                 return True
         self.errorRequested.emit("找不到要修改的节次。")
         return False
+
+    @Slot(str, str, int, result=bool)
+    def updateSemester(self, name: str, first_week_monday: str, total_weeks: int) -> bool:
+        if not self._project:
+            self.errorRequested.emit("请先创建或打开一个项目。")
+            return False
+        name = str(name).strip()
+        if not name:
+            self.errorRequested.emit("学期名称不能为空。")
+            return False
+        try:
+            monday = date.fromisoformat(str(first_week_monday).strip())
+        except ValueError:
+            self.errorRequested.emit("第一教学周周一必须是 YYYY-MM-DD 日期。")
+            return False
+        if monday.weekday() != 0:
+            self.errorRequested.emit("第一教学周周一必须是周一。")
+            return False
+        try:
+            total_weeks = int(total_weeks)
+        except (TypeError, ValueError):
+            self.errorRequested.emit("教学周数必须是整数。")
+            return False
+        if not 1 <= total_weeks <= 60:
+            self.errorRequested.emit("教学周数应在 1 到 60 周之间。")
+            return False
+        over_limit = [
+            course
+            for course in self._project.courses
+            if course.end_week > total_weeks or any(week > total_weeks for week in course.custom_weeks)
+        ]
+        if over_limit:
+            names = "、".join(course.name for course in over_limit[:5])
+            suffix = "等" if len(over_limit) > 5 else ""
+            self.errorRequested.emit(
+                f"有 {len(over_limit)} 门课程使用了第 {total_weeks + 1} 周之后的周次（{names}{suffix}）。"
+                "请先调整课程周次，再修改学期总周数。"
+            )
+            return False
+        candidate = deepcopy(self._project)
+        candidate.semester.name = name
+        candidate.semester.first_week_monday = monday.isoformat()
+        candidate.semester.total_weeks = total_weeks
+        issues = validate_project(candidate)
+        if issues:
+            self.errorRequested.emit("学期设置无法保存：" + "；".join(str(issue) for issue in issues))
+            return False
+        self._project.semester = candidate.semester
+        self.projectChanged.emit()
+        self._set_dirty(True)
+        self.toastRequested.emit("学期设置已更新。")
+        return True
+
+    @Slot(result=bool)
+    def addSection(self) -> bool:
+        if not self._project:
+            self.errorRequested.emit("请先创建或打开一个项目。")
+            return False
+        index = max((section.index for section in self._project.sections), default=0) + 1
+        start_time, end_time = "08:00", "08:45"
+        if self._project.sections:
+            last = self._project.sections[-1]
+            start_time = last.end_time
+            try:
+                end_value = datetime.strptime(start_time, "%H:%M") + timedelta(minutes=45)
+                end_time = end_value.strftime("%H:%M")
+                if end_time <= start_time:
+                    start_time, end_time = "23:00", "23:45"
+            except ValueError:
+                start_time, end_time = "08:00", "08:45"
+        section = Section(index=index, start_time=start_time, end_time=end_time, label=f"第{index}节")
+        candidate = deepcopy(self._project)
+        candidate.sections.append(section)
+        issues = validate_project(candidate)
+        if issues:
+            self.errorRequested.emit("无法添加节次：" + "；".join(str(issue) for issue in issues))
+            return False
+        self._project.sections.append(section)
+        self._section_model.append_section(section)
+        self._set_dirty(True)
+        self.toastRequested.emit(f"已添加第 {index} 节。")
+        return True
+
+    @Slot(int, result=bool)
+    def deleteSection(self, section_index: int) -> bool:
+        if not self._project:
+            return False
+        references = [
+            course.name
+            for course in self._project.courses
+            if course.start_section <= section_index <= course.end_section
+        ]
+        if references:
+            preview = "、".join(references[:3])
+            suffix = "等" if len(references) > 3 else ""
+            self.errorRequested.emit(
+                f"无法删除第 {section_index} 节。当前仍有 {len(references)} 门课程使用该节次（{preview}{suffix}），请先调整这些课程。"
+            )
+            return False
+        candidate = deepcopy(self._project)
+        candidate.sections = [section for section in candidate.sections if section.index != section_index]
+        issues = validate_project(candidate)
+        if issues:
+            self.errorRequested.emit("无法删除节次：" + "；".join(str(issue) for issue in issues))
+            return False
+        self._project.sections = candidate.sections
+        self._section_model.remove_section(section_index)
+        self._set_dirty(True)
+        self.toastRequested.emit(f"已删除第 {section_index} 节。")
+        return True
+
+    @Slot(result=bool)
+    def restoreDefaultSections(self) -> bool:
+        if not self._project:
+            return False
+        default_sections = ProjectDocument.blank(self._project.project_name).sections
+        candidate = deepcopy(self._project)
+        candidate.sections = default_sections
+        issues = validate_project(candidate)
+        if issues:
+            self.errorRequested.emit("无法恢复默认模板：请先调整使用超出默认模板范围的课程。")
+            return False
+        self._project.sections = default_sections
+        self._section_model.refresh(default_sections)
+        self._set_dirty(True)
+        self.toastRequested.emit("已恢复默认节次模板。")
+        return True
+
+    def _selected_courses(self, course_ids: list) -> list[Course] | None:
+        ids = [str(course_id) for course_id in course_ids]
+        if not ids or len(ids) != len(set(ids)):
+            self.errorRequested.emit("请先选择至少一门课程。")
+            return None
+        courses = [course for course in self._project.courses if course.id in ids]
+        if len(courses) != len(ids):
+            self.errorRequested.emit("所选课程已发生变化，请重新选择。")
+            return None
+        return courses
+
+    def _replace_courses(self, courses: list[Course], message: str) -> bool:
+        candidate = deepcopy(self._project)
+        candidate.courses = list(courses)
+        issues = validate_project(candidate)
+        if issues:
+            self.errorRequested.emit("批量操作无法应用：" + "；".join(str(issue) for issue in issues))
+            return False
+        self._project.courses = list(courses)
+        self._course_model.refresh(self._project.courses)
+        self._set_dirty(True)
+        self.toastRequested.emit(message)
+        return True
+
+    @Slot("QVariantList", int, int, str, str, result=bool)
+    def batchUpdateWeeks(self, course_ids: list, start_week: int, end_week: int, pattern: str, custom_text: str) -> bool:
+        if not self._project:
+            return False
+        selected = self._selected_courses(course_ids)
+        if selected is None:
+            return False
+        try:
+            start_week, end_week = int(start_week), int(end_week)
+            pattern = str(pattern)
+            if pattern not in PATTERNS:
+                raise ValueError("周次模式无效")
+            if not 1 <= start_week <= end_week <= self._project.semester.total_weeks:
+                raise ValueError(f"周次范围必须在 1 到 {self._project.semester.total_weeks} 周之间")
+            custom_weeks = parse_custom_weeks(custom_text, self._project.semester.total_weeks, required=pattern == "custom")
+        except ValueError as exc:
+            self.errorRequested.emit(f"批量周次无法应用：{exc}")
+            return False
+        selected_ids = {course.id for course in selected}
+        updated = [
+            Course(**{
+                **course.__dict__,
+                "start_week": start_week if course.id in selected_ids else course.start_week,
+                "end_week": end_week if course.id in selected_ids else course.end_week,
+                "week_pattern": pattern if course.id in selected_ids else course.week_pattern,
+                "custom_weeks": custom_weeks if course.id in selected_ids else course.custom_weeks,
+            })
+            for course in self._project.courses
+        ]
+        return self._replace_courses(updated, f"已修改 {len(selected)} 门课程的周次。")
+
+    @Slot("QVariantList", str, str, str, result=bool)
+    def batchUpdateLocation(self, course_ids: list, building: str, room: str, location_text: str) -> bool:
+        if not self._project:
+            return False
+        selected = self._selected_courses(course_ids)
+        if selected is None:
+            return False
+        selected_ids = {course.id for course in selected}
+        updated = [
+            Course(**{
+                **course.__dict__,
+                "building": str(building).strip() if course.id in selected_ids else course.building,
+                "room": str(room).strip() if course.id in selected_ids else course.room,
+                "location_text": str(location_text).strip() if course.id in selected_ids else course.location_text,
+            })
+            for course in self._project.courses
+        ]
+        return self._replace_courses(updated, f"已修改 {len(selected)} 门课程的地点。")
+
+    @Slot("QVariantList", result=bool)
+    def batchDeleteCourses(self, course_ids: list) -> bool:
+        if not self._project:
+            return False
+        selected = self._selected_courses(course_ids)
+        if selected is None:
+            return False
+        selected_ids = {course.id for course in selected}
+        remaining = [course for course in self._project.courses if course.id not in selected_ids]
+        return self._replace_courses(remaining, f"已删除 {len(selected)} 门课程。")
 
     @Slot(str)
     def notify(self, message: str) -> None:

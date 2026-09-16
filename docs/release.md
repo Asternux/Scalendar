@@ -1,6 +1,6 @@
 # 构建与发布（草案）
 
-当前 M0–M3 只提供源码运行方式，尚未生成正式 Windows EXE。发布前需要在干净的 Windows 构建环境中安装项目依赖，运行测试，再使用 PyInstaller 或等价方案打包 PySide6/QML 资源。
+当前 M0–M4 只提供源码运行方式，尚未生成正式 Windows EXE。发布前需要在干净的 Windows 构建环境中安装项目依赖，运行测试，再使用 PyInstaller 或等价方案打包 PySide6/QML 资源。
 
 建议发布检查：
 

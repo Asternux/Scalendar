@@ -5,6 +5,7 @@ from __future__ import annotations
 from PySide6.QtCore import QObject, Property, Signal, Slot
 
 from scalendar.core.models import Course, new_id
+from scalendar.core.validation import parse_custom_weeks
 
 
 class CourseEditorState(QObject):
@@ -217,14 +218,11 @@ class CourseEditorState(QObject):
         self.recognitionStatus = values.recognition_status
 
     def to_course(self, total_weeks: int) -> Course:
-        custom_weeks = []
-        for item in self._custom_weeks_text.replace("，", ",").split(","):
-            item = item.strip()
-            if item:
-                try:
-                    custom_weeks.append(int(item))
-                except ValueError:
-                    continue
+        custom_weeks = parse_custom_weeks(
+            self._custom_weeks_text,
+            total_weeks,
+            required=self._week_pattern == "custom",
+        )
         return Course(
             id=self._course_id or new_id(),
             name=self._name.strip(),

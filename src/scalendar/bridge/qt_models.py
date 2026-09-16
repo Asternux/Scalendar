@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from PySide6.QtCore import QAbstractListModel, QModelIndex, Qt, Slot, QObject, Property
+from PySide6.QtCore import QAbstractListModel, QModelIndex, Qt, Slot, QObject, Property, QSortFilterProxyModel, Signal
 
 from scalendar.core.models import Course, ProjectDocument, Section
 from scalendar.core.timetable_layout import DEFAULT_TIMETABLE_LAYOUT
@@ -40,6 +40,7 @@ class TimetableLayoutModel(QObject):
 
 
 class CourseListModel(QAbstractListModel):
+    countChanged = Signal()
     CourseIdRole = Qt.UserRole + 1
     NameRole = Qt.UserRole + 2
     WeekdayRole = Qt.UserRole + 3
@@ -88,6 +89,10 @@ class CourseListModel(QAbstractListModel):
     def rowCount(self, parent: QModelIndex = QModelIndex()) -> int:
         return 0 if parent.isValid() else len(self._courses)
 
+    @Property(int, notify=countChanged)
+    def count(self) -> int:
+        return len(self._courses)
+
     def data(self, index: QModelIndex, role: int = Qt.DisplayRole) -> Any:
         if not index.isValid() or not 0 <= index.row() < len(self._courses):
             return None
@@ -117,12 +122,14 @@ class CourseListModel(QAbstractListModel):
         self.beginResetModel()
         self._courses = list(courses)
         self.endResetModel()
+        self.countChanged.emit()
 
     def append_course(self, course: Course) -> None:
         row = len(self._courses)
         self.beginInsertRows(QModelIndex(), row, row)
         self._courses.append(course)
         self.endInsertRows()
+        self.countChanged.emit()
 
     def update_course(self, course: Course) -> bool:
         for row, current in enumerate(self._courses):
@@ -139,6 +146,7 @@ class CourseListModel(QAbstractListModel):
                 self.beginRemoveRows(QModelIndex(), row, row)
                 self._courses.pop(row)
                 self.endRemoveRows()
+                self.countChanged.emit()
                 return True
         return False
 
@@ -149,28 +157,84 @@ class CourseListModel(QAbstractListModel):
         return list(self._courses)
 
 
+class CourseSortProxyModel(QSortFilterProxyModel):
+    """A view-only sort over the shared course model.
+
+    The source model remains the project's canonical course order. Sorting
+    therefore cannot mutate persisted order or affect stable course IDs.
+    """
+
+    sortModeChanged = Signal()
+
+    def __init__(self, parent: QObject | None = None) -> None:
+        super().__init__(parent)
+        self._sort_mode = 0
+        self.setDynamicSortFilter(True)
+        self.sort(0, Qt.AscendingOrder)
+
+    @Property(int, notify=sortModeChanged)
+    def sortMode(self) -> int:
+        return self._sort_mode
+
+    @Slot(int)
+    def setSortMode(self, mode: int) -> None:
+        mode = max(0, min(2, int(mode)))
+        if self._sort_mode == mode:
+            self.sort(0, Qt.AscendingOrder)
+            return
+        self._sort_mode = mode
+        self.sortModeChanged.emit()
+        self.invalidate()
+        self.sort(0, Qt.AscendingOrder)
+
+    def lessThan(self, left: QModelIndex, right: QModelIndex) -> bool:
+        source = self.sourceModel()
+        if source is None:
+            return False
+        role = CourseListModel
+        left_name = str(source.data(left, role.NameRole) or "").casefold()
+        right_name = str(source.data(right, role.NameRole) or "").casefold()
+        left_weekday = int(source.data(left, role.WeekdayRole) or 0)
+        right_weekday = int(source.data(right, role.WeekdayRole) or 0)
+        left_start = int(source.data(left, role.StartSectionRole) or 0)
+        right_start = int(source.data(right, role.StartSectionRole) or 0)
+        if self._sort_mode == 1:
+            return (left_name, left_weekday, left_start) < (right_name, right_weekday, right_start)
+        if self._sort_mode == 2:
+            return (left_start, left_weekday, left_name) < (right_start, right_weekday, right_name)
+        return (left_weekday, left_start, left_name) < (right_weekday, right_start, right_name)
+
+
 class SectionListModel(QAbstractListModel):
+    countChanged = Signal()
     IndexRole = Qt.UserRole + 1
     StartTimeRole = Qt.UserRole + 2
     EndTimeRole = Qt.UserRole + 3
     LabelRole = Qt.UserRole + 4
+    WarningRole = Qt.UserRole + 5
 
     _roles = {
         IndexRole: b"sectionIndex",
         StartTimeRole: b"startTime",
         EndTimeRole: b"endTime",
         LabelRole: b"label",
+        WarningRole: b"warningText",
     }
 
     def __init__(self, parent: QObject | None = None) -> None:
         super().__init__(parent)
         self._sections: list[Section] = []
+        self._warnings: list[str] = []
 
     def roleNames(self) -> dict[int, bytes]:
         return self._roles
 
     def rowCount(self, parent: QModelIndex = QModelIndex()) -> int:
         return 0 if parent.isValid() else len(self._sections)
+
+    @Property(int, notify=countChanged)
+    def count(self) -> int:
+        return len(self._sections)
 
     def data(self, index: QModelIndex, role: int = Qt.DisplayRole) -> Any:
         if not index.isValid() or not 0 <= index.row() < len(self._sections):
@@ -181,19 +245,51 @@ class SectionListModel(QAbstractListModel):
             self.StartTimeRole: section.start_time,
             self.EndTimeRole: section.end_time,
             self.LabelRole: section.label,
+            self.WarningRole: self._warnings[index.row()] if index.row() < len(self._warnings) else "",
         }.get(role)
+
+    def _recompute_warnings(self) -> None:
+        warnings = ["" for _ in self._sections]
+        for left_row, left in enumerate(self._sections):
+            for right_row in range(left_row + 1, len(self._sections)):
+                right = self._sections[right_row]
+                if left.start_time < right.end_time and right.start_time < left.end_time:
+                    warnings[left_row] = f"与第 {right.index} 节时间重叠"
+                    warnings[right_row] = f"与第 {left.index} 节时间重叠"
+        self._warnings = warnings
 
     def refresh(self, sections: list[Section]) -> None:
         self.beginResetModel()
         self._sections = list(sections)
+        self._recompute_warnings()
         self.endResetModel()
+        self.countChanged.emit()
+
+    def append_section(self, section: Section) -> None:
+        row = len(self._sections)
+        self.beginInsertRows(QModelIndex(), row, row)
+        self._sections.append(section)
+        self._recompute_warnings()
+        self.endInsertRows()
+        self.countChanged.emit()
+
+    def remove_section(self, section_index: int) -> bool:
+        for row, section in enumerate(self._sections):
+            if section.index == section_index:
+                self.beginRemoveRows(QModelIndex(), row, row)
+                self._sections.pop(row)
+                self._recompute_warnings()
+                self.endRemoveRows()
+                self.countChanged.emit()
+                return True
+        return False
 
     def update_section(self, section: Section) -> bool:
         for row, current in enumerate(self._sections):
             if current.index == section.index:
                 self._sections[row] = section
-                index = self.index(row, 0)
-                self.dataChanged.emit(index, index, list(self._roles))
+                self._recompute_warnings()
+                self.dataChanged.emit(self.index(0, 0), self.index(len(self._sections) - 1, 0), list(self._roles))
                 return True
         return False
 
