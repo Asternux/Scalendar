@@ -39,6 +39,8 @@ Windows 便携版构建使用：
 
 产物位于 `build\dist\Scalendar\Scalendar.exe`，构建目录不会提交 Git。
 
+GitHub Actions：普通 push / pull request 会在 Windows runner 上运行测试；手动触发 `Windows package` 或推送版本 Tag 时，会生成短期保留的便携版构建产物。Actions 不会自动创建 Release，也不会替代用户确认后的发布流程。
+
 当前 GUI 启动后会打开 Home 页面。可以创建空白课表、添加/编辑/删除课程、在课表和课程列表间同步编辑、按星期/节次/名称排序、多选批量修改周次或地点、修改学期设置和节次时间、保存并重新打开 `.scalendar`。导入页支持 PNG/JPG/JPEG/WEBP 图片以及 XLSX 文件选择或拖拽；图片识别请求不会自动发起，Excel 和视觉识别结果都会先进入候选确认，再以新增课程方式导入。导出页支持标准 XLSX 和 ICS；ICS 会按实际课程日期生成事件。格式说明见 [docs/excel.md](docs/excel.md) 和 [docs/ics.md](docs/ics.md)。
 
 ## 架构
@@ -76,3 +78,4 @@ src/scalendar/
 | M6 Excel Import / Export | 已完成，checkpoint `bb3bcc080d48` |
 | M7 ICS Export | 已完成，checkpoint `132f0b7f0497` |
 | M8 Windows EXE / 发布流程 | 已完成，checkpoint `87b9ec36757c` |
+| M9 GitHub CI / 构建自动化 | 已完成，待验收 |

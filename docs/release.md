@@ -2,6 +2,8 @@
 
 M7 已完成并建立 checkpoint。M8 使用 PyInstaller 生成 Windows 便携版；构建脚本为 [tools/build_windows.ps1](../tools/build_windows.ps1)，产物写入 `build\dist\Scalendar`，不进入 Git。M5 的 OpenAI Vision 请求需要用户在运行会话中提供 API Key；该 Key 不属于发布包或项目文件。M6 的 XLSX 读写和 M7 的 ICS 写入使用 Python 标准库边界，不要求安装 Excel 或 Apple 软件。
 
+GitHub Actions 配置位于 `.github/workflows/`：`ci.yml` 负责 Windows 测试与编译检查；`windows-package.yml` 仅在手动触发或推送版本 Tag 时构建便携版并上传临时 artifact，不自动发布 GitHub Release。
+
 建议发布检查：
 
 1. `pytest` 全部通过。
