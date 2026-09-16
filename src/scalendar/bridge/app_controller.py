@@ -15,6 +15,7 @@ from scalendar.bridge.course_editor import CourseEditorState
 from scalendar.bridge.qt_models import CourseListModel, CourseSortProxyModel, RecognitionCandidateModel, SectionListModel, TimetableLayoutModel
 from scalendar.core.models import Course, ProjectDocument, Section
 from scalendar.core.validation import PATTERNS, TIME_RE, parse_custom_weeks, validate_project
+from scalendar.exporters.ics import IcsExportError, export_project_to_ics
 from scalendar.exporters.xlsx import ExcelExportError, export_project_to_xlsx
 from scalendar.importers.xlsx import ExcelImportError, ExcelImportResult, import_xlsx
 from scalendar.recognition.base import RecognitionContext, RecognitionError, RecognitionProvider
@@ -511,6 +512,22 @@ class AppController(QObject):
             self.errorRequested.emit(exc.message)
             return False
         self.toastRequested.emit(f"Excel 已导出：{target.name}")
+        return True
+
+    @Slot(str, result=bool)
+    def exportIcs(self, path: str) -> bool:
+        if not self._project:
+            self.errorRequested.emit("还没有可导出的项目。")
+            return False
+        target = _local_path(path)
+        if target.suffix.lower() != ".ics":
+            target = target.with_suffix(".ics")
+        try:
+            export_project_to_ics(self._project, target)
+        except IcsExportError as exc:
+            self.errorRequested.emit(exc.message)
+            return False
+        self.toastRequested.emit(f"ICS 已导出：{target.name}")
         return True
 
     def _set_excel_error(self, code: str, message: str) -> None:

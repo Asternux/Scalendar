@@ -2,7 +2,7 @@
 
 Scalendar V1 是课表图片到日历的全新 Windows 桌面重写。它与旧测试版保持 Git 历史隔离：旧版基线仍在 `main` 与 `v0.0.0-test`，新版本只在 `rewrite/v1` 开发。
 
-当前交付范围是 Milestone 0–6：完成 Python/PySide6/QML 工程骨架、真实 `.scalendar` 项目生命周期、可编辑课程模型、课程列表多选批量操作、学期与节次设置、图片导入与 OpenAI Vision 结构化识别候选，以及标准 XLSX 导入/导出。ICS 导出、推送和真实地图位置解析暂未实现，这是有意保留的后续阶段。
+当前交付范围是 Milestone 0–7：完成 Python/PySide6/QML 工程骨架、真实 `.scalendar` 项目生命周期、可编辑课程模型、课程列表多选批量操作、学期与节次设置、图片导入与 OpenAI Vision 结构化识别候选、标准 XLSX 导入/导出，以及面向 Apple 日历的 ICS 导出。推送和真实地图位置解析暂未实现，这是有意保留的后续阶段。
 
 ## 开发环境
 
@@ -31,7 +31,7 @@ pytest
 scalendar
 ```
 
-当前 GUI 启动后会打开 Home 页面。可以创建空白课表、添加/编辑/删除课程、在课表和课程列表间同步编辑、按星期/节次/名称排序、多选批量修改周次或地点、修改学期设置和节次时间、保存并重新打开 `.scalendar`。导入页支持 PNG/JPG/JPEG/WEBP 图片以及 XLSX 文件选择或拖拽；图片识别请求不会自动发起，Excel 和视觉识别结果都会先进入候选确认，再以新增课程方式导入。Excel 格式和外部表格兼容范围见 [docs/excel.md](docs/excel.md)。
+当前 GUI 启动后会打开 Home 页面。可以创建空白课表、添加/编辑/删除课程、在课表和课程列表间同步编辑、按星期/节次/名称排序、多选批量修改周次或地点、修改学期设置和节次时间、保存并重新打开 `.scalendar`。导入页支持 PNG/JPG/JPEG/WEBP 图片以及 XLSX 文件选择或拖拽；图片识别请求不会自动发起，Excel 和视觉识别结果都会先进入候选确认，再以新增课程方式导入。导出页支持标准 XLSX 和 ICS；ICS 会按实际课程日期生成事件。格式说明见 [docs/excel.md](docs/excel.md) 和 [docs/ics.md](docs/ics.md)。
 
 ## 架构
 
@@ -42,7 +42,7 @@ src/scalendar/
 ├── storage/                # .scalendar JSON 项目读写
 ├── recognition/            # 后续 OCR/视觉识别适配器
 ├── importers/              # Excel 输入适配器与外部表格兼容层
-├── exporters/              # XLSX 输出适配器（ICS 后续阶段）
+├── exporters/              # XLSX / ICS 输出适配器
 ├── bridge/                 # Python 与 QML 的控制器边界
 └── ui/                    # Qt Quick/QML 页面、组件和主题
 ```
@@ -65,5 +65,5 @@ src/scalendar/
 | M3 真实项目数据与手工课表编辑器 | 已完成，checkpoint `ee72e9343c13` |
 | M4 课程列表与时间设置增强 | 已完成，checkpoint `25abd66d180f` |
 | M5 图片识别 | 已完成，checkpoint `35c2a64` |
-| M6 Excel Import / Export | 已实现，待验收（未提交） |
-| M7 ICS Export | 待开始 |
+| M6 Excel Import / Export | 已完成，checkpoint `bb3bcc080d48` |
+| M7 ICS Export | 已实现，待验收（未提交） |

@@ -16,6 +16,14 @@ Page {
         defaultSuffix: "xlsx"
         onAccepted: appController.exportExcel(selectedFile.toString())
     }
+    FileDialog {
+        id: icsSaveDialog
+        title: "导出 Apple 日历文件"
+        fileMode: FileDialog.SaveFile
+        nameFilters: ["iCalendar 文件 (*.ics)"]
+        defaultSuffix: "ics"
+        onAccepted: appController.exportIcs(selectedFile.toString())
+    }
     Flickable {
         anchors.fill: parent
         contentWidth: width
@@ -32,7 +40,7 @@ color: Theme.ink
 font.pixelSize: 25
 font.bold: true }
             Text { Layout.fillWidth: true
-text: "将当前项目导出为可继续整理的标准 XLSX 文件。导出的 Courses 和 Settings Sheet 可以再次导入 Scalendar。"
+text: "将当前项目导出为标准 XLSX 或 ICS 文件，分别用于整理备份和导入手机日历。"
 color: Theme.inkSoft
 font.pixelSize: 13
 wrapMode: Text.WordWrap }
@@ -99,13 +107,23 @@ color: Theme.ink
 font.pixelSize: 16
 font.bold: true }
                         Text { Layout.fillWidth: true
-text: "ICS 导出将在后续 M7 阶段实现。"
+                            text: "生成可导入 iPhone / iPad 自带日历的 .ics 文件。"
 color: Theme.muted
 font.pixelSize: 12
 wrapMode: Text.WordWrap }
                         Item { Layout.fillHeight: true }
-                        Button { text: "M7 开放"
-enabled: false
+                        Button { text: appController.hasProject ? "导出 ICS" : "请先打开项目"
+enabled: appController.hasProject
+onClicked: icsSaveDialog.open()
+contentItem: Text { text: parent.text
+color: parent.enabled ? "white" : Theme.muted
+font.pixelSize: 12
+font.bold: true
+horizontalAlignment: Text.AlignHCenter
+verticalAlignment: Text.AlignVCenter }
+background: Rectangle { radius: 9
+color: parent.enabled ? Theme.accent : Theme.surfaceSoft
+border.color: Theme.border }
 Layout.preferredWidth: 124
 Layout.preferredHeight: 36 }
                     }
@@ -119,7 +137,7 @@ color: Theme.surfaceGlass
 border.color: Theme.border
                 Text { anchors.fill: parent
 anchors.margins: 18
-text: "导出前会检查学期日期、节次时间和课程周次。Excel 只包含课程与项目设置，不包含 API Key、图片或内部 UUID；项目原文件仍然是 Scalendar 的主要数据源。"
+text: "ICS 会按实际课程日期生成事件，支持每周、单周、双周和自定义周次。地点只写入你确认过的文本，不猜测经纬度，避免 Apple 日历把同名地点误定位。"
 color: Theme.inkSoft
 font.pixelSize: 12
 wrapMode: Text.WordWrap
