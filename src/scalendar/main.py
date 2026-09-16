@@ -26,8 +26,10 @@ def main(argv: list[str] | None = None) -> int:
     engine = QQmlApplicationEngine()
     controller = AppController()
     engine.rootContext().setContextProperty("appController", controller)
+    engine.rootContext().setContextProperty("courseEditor", controller.courseEditor)
     engine.rootContext().setContextProperty("initialWidth", max(args.width, 1120))
     engine.rootContext().setContextProperty("initialHeight", max(args.height, 720))
+    engine.rootContext().setContextProperty("initialCourseId", "")
     qml_dir = Path(__file__).parent / "ui"
     engine.addImportPath(str(qml_dir))
     qml_path = qml_dir / "Main.qml"

@@ -25,9 +25,9 @@ Page {
                 radius: Theme.radiusLarge
                 color: Theme.accent
                 clip: true
-                ColumnLayout { anchors.left: parent.left; anchors.leftMargin: 42; anchors.verticalCenter: parent.verticalCenter; width: Math.min(parent.width * 0.62, 600); spacing: 12; Text { text: "把一张课表图片，\n变成真正好用的日历"; color: "white"; font.pixelSize: 31; font.bold: true; lineHeight: 1.08 }
- Text { text: "Scalendar 用清晰的步骤帮助你识别、校对、编辑，并导出属于自己的课程安排。"; color: "#EAF1FF"; font.pixelSize: 14; wrapMode: Text.WordWrap; Layout.fillWidth: true }
- Button { text: "开始整理课表  →"; implicitWidth: 162; implicitHeight: 44; onClicked: page.startRequested(); contentItem: Text { text: parent.text; color: Theme.accent; font.pixelSize: 14; font.bold: true; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
+                ColumnLayout { anchors.left: parent.left; anchors.leftMargin: 42; anchors.verticalCenter: parent.verticalCenter; width: Math.min(parent.width * 0.62, 600); spacing: 12; Text { text: "把课表整理成\n真正好用的日历"; color: "white"; font.pixelSize: 31; font.bold: true; lineHeight: 1.08 }
+ Text { text: "先创建一个空白项目，手动编辑课程并保存为可恢复的 .scalendar 文件。"; color: "#EAF1FF"; font.pixelSize: 14; wrapMode: Text.WordWrap; Layout.fillWidth: true }
+ Button { text: "创建空白课表  →"; implicitWidth: 162; implicitHeight: 44; onClicked: page.startRequested(); contentItem: Text { text: parent.text; color: Theme.accent; font.pixelSize: 14; font.bold: true; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
  background: Rectangle { radius: 12; color: "white" } } }
                 Text { anchors.right: parent.right; anchors.rightMargin: 58; anchors.verticalCenter: parent.verticalCenter; text: "✦"; color: "#9AB9FF"; font.pixelSize: 118; opacity: 0.55 }
                 Text { anchors.right: parent.right; anchors.rightMargin: 34; anchors.bottom: parent.bottom; anchors.bottomMargin: 32; text: "·  ·  ·"; color: "#BFD1FF"; font.pixelSize: 18; opacity: 0.8 }

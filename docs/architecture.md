@@ -11,9 +11,9 @@ V1 采用 Python + PySide6 + Qt Quick/QML。Python 负责稳定数据模型、�
 - `core/`：纯 Python 数据和日期逻辑，可脱离 GUI 测试。
 - `storage/`：`.scalendar` JSON 的读取、校验和原子替换保存。
 - `recognition/`、`importers/`、`exporters/`：为 M3+ 预留适配器边界。
-- `bridge/`：Qt 对象和 QML 可调用的最小接口。
+- `bridge/`：Qt 对象、`QAbstractListModel` 和 QML 可调用的最小接口。课程集合通过角色暴露，编辑器使用独立的未保存状态对象。
 - `ui/`：页面、组件、主题 token；页面不直接读写磁盘。
 
 ## 后续演进
 
-识别结果应先落到项目模型的草稿对象，用户确认后再成为课程。导出器只能消费已校验的项目与展开后的 occurrence，不应反向改变项目数据。位置解析必须是可选增强：即使地理匹配失败，也保留原始 `location_text` 并允许导出。
+项目生命周期由 `AppController` 负责：创建空白项目、加载、保存、debounce autosave、课程增删改和节次更新。保存前仍由 Core validation 拦截非法数据，`.scalendar` 是唯一真相源。识别结果应先落到项目模型的草稿对象，用户确认后再成为课程。导出器只能消费已校验的项目与展开后的 occurrence，不应反向改变项目数据。位置解析必须是可选增强：即使地理匹配失败，也保留原始 `location_text` 并允许导出。

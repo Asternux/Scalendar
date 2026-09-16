@@ -31,7 +31,7 @@ Item {
         SidebarItem { Layout.fillWidth: true; label: "导出"; glyph: "↗"; selected: root.currentPage === "export"; onClicked: root.navigate("export") }
         Item { Layout.fillHeight: true }
         SidebarItem { Layout.fillWidth: true; label: "设置"; glyph: "⚙"; selected: root.currentPage === "settings"; onClicked: root.navigate("settings") }
-        Text { Layout.fillWidth: true; text: "V1 · M2 UI shell"; color: Theme.muted; font.pixelSize: 11; horizontalAlignment: Text.AlignHCenter; bottomPadding: 3 }
+        Text { Layout.fillWidth: true; text: "V1 · M3 editor"; color: Theme.muted; font.pixelSize: 11; horizontalAlignment: Text.AlignHCenter; bottomPadding: 3 }
     }
 }
 
