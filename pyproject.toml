@@ -17,6 +17,9 @@ dependencies = [
 test = [
     "pytest>=8,<9",
 ]
+build = [
+    "pyinstaller>=6,<7",
+]
 
 [project.scripts]
 scalendar = "scalendar.main:main"
