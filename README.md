@@ -48,7 +48,7 @@ src/scalendar/
 ├── main.py                 # Qt 应用入口
 ├── core/                   # 纯数据模型、校验、课表日期计算
 ├── storage/                # .scalendar JSON 项目读写
-├── recognition/            # 后续 OCR/视觉识别适配器
+├── recognition/            # 图片识别 provider 与候选结果规范化
 ├── importers/              # Excel 输入适配器与外部表格兼容层
 ├── exporters/              # XLSX / ICS 输出适配器
 ├── bridge/                 # Python 与 QML 的控制器边界
