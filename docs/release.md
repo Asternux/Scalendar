@@ -1,6 +1,6 @@
 # 构建与发布（草案）
 
-当前 M0–M5 只提供源码运行方式，尚未生成正式 Windows EXE。发布前需要在干净的 Windows 构建环境中安装项目依赖，运行测试，再使用 PyInstaller 或等价方案打包 PySide6/QML 资源。M5 的 OpenAI Vision 请求需要用户在运行会话中提供 API Key；该 Key 不属于发布包或项目文件。
+当前 M0–M6 只提供源码运行方式，尚未生成正式 Windows EXE。发布前需要在干净的 Windows 构建环境中安装项目依赖，运行测试，再使用 PyInstaller 或等价方案打包 PySide6/QML 资源。M5 的 OpenAI Vision 请求需要用户在运行会话中提供 API Key；该 Key 不属于发布包或项目文件。M6 的 XLSX 读写使用项目内的轻量 OOXML 适配器，不增加运行时 Excel 依赖。
 
 建议发布检查：
 

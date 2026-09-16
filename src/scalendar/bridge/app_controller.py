@@ -15,6 +15,8 @@ from scalendar.bridge.course_editor import CourseEditorState
 from scalendar.bridge.qt_models import CourseListModel, CourseSortProxyModel, RecognitionCandidateModel, SectionListModel, TimetableLayoutModel
 from scalendar.core.models import Course, ProjectDocument, Section
 from scalendar.core.validation import PATTERNS, TIME_RE, parse_custom_weeks, validate_project
+from scalendar.exporters.xlsx import ExcelExportError, export_project_to_xlsx
+from scalendar.importers.xlsx import ExcelImportError, ExcelImportResult, import_xlsx
 from scalendar.recognition.base import RecognitionContext, RecognitionError, RecognitionProvider
 from scalendar.recognition.models import RecognitionResult
 from scalendar.recognition.normalizer import candidate_to_course
@@ -68,6 +70,7 @@ class AppController(QObject):
     imageChanged = Signal()
     recognitionChanged = Signal()
     apiKeyChanged = Signal()
+    excelChanged = Signal()
 
     def __init__(self, recognition_provider: RecognitionProvider | None = None) -> None:
         super().__init__()
@@ -79,6 +82,7 @@ class AppController(QObject):
         self._course_sort_model = CourseSortProxyModel(self)
         self._course_sort_model.setSourceModel(self._course_model)
         self._recognition_candidate_model = RecognitionCandidateModel(self)
+        self._excel_candidate_model = RecognitionCandidateModel(self)
         self._section_model = SectionListModel(self)
         self._timetable_layout = TimetableLayoutModel(self)
         self._course_editor = CourseEditorState(self)
@@ -98,6 +102,13 @@ class AppController(QObject):
         self._recognition_phase = ""
         self._recognition_error_text = ""
         self._pending_recognition: RecognitionResult | None = None
+        self._excel_file_path = Path()
+        self._excel_file_name = ""
+        self._excel_sheet_count = 0
+        self._excel_format_text = ""
+        self._excel_state = "idle"
+        self._excel_error_text = ""
+        self._pending_excel: ExcelImportResult | None = None
         self._session_api_key = ""
         self._session_model = os.environ.get("OPENAI_MODEL", "gpt-5.5")
 
@@ -200,6 +211,38 @@ class AppController(QObject):
     @Property(int, notify=recognitionChanged)
     def recognitionReviewCount(self) -> int:
         return self._pending_recognition.review_count if self._pending_recognition else 0
+
+    @Property(QObject, constant=True)
+    def excelCandidateModel(self) -> RecognitionCandidateModel:
+        return self._excel_candidate_model
+
+    @Property(str, notify=excelChanged)
+    def excelFileName(self) -> str:
+        return self._excel_file_name
+
+    @Property(int, notify=excelChanged)
+    def excelSheetCount(self) -> int:
+        return self._excel_sheet_count
+
+    @Property(str, notify=excelChanged)
+    def excelFormatText(self) -> str:
+        return self._excel_format_text
+
+    @Property(str, notify=excelChanged)
+    def excelState(self) -> str:
+        return self._excel_state
+
+    @Property(str, notify=excelChanged)
+    def excelErrorText(self) -> str:
+        return self._excel_error_text
+
+    @Property(int, notify=excelChanged)
+    def excelCourseCount(self) -> int:
+        return len(self._pending_excel.candidates) if self._pending_excel else 0
+
+    @Property(int, notify=excelChanged)
+    def excelReviewCount(self) -> int:
+        return sum(1 for candidate in self._pending_excel.candidates if candidate.needs_review) if self._pending_excel else 0
 
     @Property(bool, notify=apiKeyChanged)
     def hasApiKey(self) -> bool:
@@ -374,6 +417,122 @@ class AppController(QObject):
         self.pageRequested.emit("timetable")
         self.toastRequested.emit(f"已向当前课表新增 {count} 门课程。")
         return True
+
+    @Slot(str, result=bool)
+    def selectExcel(self, path: str) -> bool:
+        source = _local_path(str(path))
+        if source.suffix.lower() != ".xlsx":
+            self._set_excel_error("not_xlsx", "请选择 XLSX 文件。")
+            return False
+        try:
+            result = import_xlsx(source)
+        except ExcelImportError as exc:
+            self._set_excel_error(exc.code, exc.message)
+            return False
+        self.clearImage()
+        self._excel_file_path = source
+        self._excel_file_name = source.name
+        self._excel_sheet_count = len(result.sheet_names)
+        self._excel_format_text = result.format_text
+        self._excel_state = "ready_to_import"
+        self._excel_error_text = ""
+        self._pending_excel = result
+        self._excel_candidate_model.refresh(result.candidates)
+        self.excelChanged.emit()
+        return True
+
+    @Slot()
+    def clearExcel(self) -> None:
+        self._excel_file_path = Path()
+        self._excel_file_name = ""
+        self._excel_sheet_count = 0
+        self._excel_format_text = ""
+        self._excel_state = "idle"
+        self._excel_error_text = ""
+        self._pending_excel = None
+        self._excel_candidate_model.clear()
+        self.excelChanged.emit()
+
+    @Slot(result=bool)
+    def applyExcelImport(self) -> bool:
+        if not self._project or not self._pending_excel:
+            self.errorRequested.emit("没有可导入的 Excel 结果。")
+            return False
+        result = self._pending_excel
+        blank_project = not self._project.courses
+        candidate_project = deepcopy(self._project)
+        if blank_project and result.workbook_kind == "standard":
+            candidate_project.project_name = result.project_name
+            candidate_project.semester.name = result.semester_name
+            candidate_project.semester.first_week_monday = result.first_week_monday
+            candidate_project.semester.total_weeks = result.total_weeks
+            candidate_project.school = result.school
+            candidate_project.campus = result.campus
+            if result.sections:
+                candidate_project.sections = list(result.sections)
+        section_indices = tuple(section.index for section in candidate_project.sections)
+        new_courses = [
+            candidate_to_course(candidate, candidate_project.semester.total_weeks, section_indices)
+            for candidate in result.candidates
+        ]
+        candidate_project.courses.extend(new_courses)
+        issues = validate_project(candidate_project)
+        if issues:
+            self.errorRequested.emit("Excel 结果无法导入：" + "；".join(str(issue) for issue in issues))
+            return False
+        self._project.semester = candidate_project.semester
+        self._project.project_name = candidate_project.project_name
+        self._project.school = candidate_project.school
+        self._project.campus = candidate_project.campus
+        self._project.sections = candidate_project.sections
+        self._project.courses.extend(new_courses)
+        self._section_model.refresh(self._project.sections)
+        for course in new_courses:
+            self._course_model.append_course(course)
+        count = len(new_courses)
+        self.clearExcel()
+        self._set_dirty(True)
+        self.projectChanged.emit()
+        self.pageRequested.emit("timetable")
+        self.toastRequested.emit(f"已从 Excel 新增 {count} 门课程。")
+        return True
+
+    @Slot(str, result=bool)
+    def exportExcel(self, path: str) -> bool:
+        if not self._project:
+            self.errorRequested.emit("还没有可导出的项目。")
+            return False
+        target = _local_path(path)
+        if target.suffix.lower() != ".xlsx":
+            target = target.with_suffix(".xlsx")
+        try:
+            export_project_to_xlsx(self._project, target)
+        except ExcelExportError as exc:
+            self.errorRequested.emit(exc.message)
+            return False
+        self.toastRequested.emit(f"Excel 已导出：{target.name}")
+        return True
+
+    def _set_excel_error(self, code: str, message: str) -> None:
+        messages = {
+            "file_not_found": "找不到 Excel 文件。",
+            "file_corrupt": "Excel 文件损坏或不是有效的 XLSX 文件。",
+            "not_xlsx": "请选择 XLSX 文件。",
+            "missing_courses": "缺少必要 Sheet：Courses。",
+            "missing_settings": "缺少必要 Sheet：Settings。",
+            "missing_columns": "Courses Sheet 缺少必要列。",
+            "invalid_cell": "Excel 中存在格式错误的单元格。",
+            "out_of_range": "Excel 中存在超出项目范围的课程数据。",
+            "unrecognized_structure": "无法可靠识别该 Excel 的课表结构。",
+            "no_courses": "Excel 中没有可导入的课程。",
+            "invalid_settings": "Excel 的学期设置无效。",
+        }
+        self._excel_state = "error"
+        self._excel_error_text = messages.get(code, message)
+        self._pending_excel = None
+        self._excel_candidate_model.clear()
+        self.excelChanged.emit()
+        self.errorRequested.emit(self._excel_error_text)
 
     def _set_image_error(self, message: str) -> None:
         self._recognition_state = "error"
@@ -806,6 +965,7 @@ class AppController(QObject):
         self._section_model.refresh(project.sections)
         self._course_editor.reset()
         self.clearImage()
+        self.clearExcel()
         self.projectChanged.emit()
         self.projectPathChanged.emit()
 
