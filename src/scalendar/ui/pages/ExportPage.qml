@@ -1,0 +1,149 @@
+import QtQuick 2.15
+import QtQuick.Controls 2.15
+import QtQuick.Dialogs 6.5
+import QtQuick.Layouts 1.15
+import Scalendar.Theme 1.0
+
+Page {
+    id: page
+    objectName: "exportPage"
+    background: Rectangle { color: "transparent" }
+    FileDialog {
+        id: excelSaveDialog
+        title: "导出 Excel 课表"
+        fileMode: FileDialog.SaveFile
+        nameFilters: ["Excel 工作簿 (*.xlsx)"]
+        defaultSuffix: "xlsx"
+        onAccepted: appController.exportExcel(selectedFile.toString())
+    }
+    FileDialog {
+        id: icsSaveDialog
+        title: "导出 Apple 日历文件"
+        fileMode: FileDialog.SaveFile
+        nameFilters: ["iCalendar 文件 (*.ics)"]
+        defaultSuffix: "ics"
+        onAccepted: appController.exportIcs(selectedFile.toString())
+    }
+    Flickable {
+        anchors.fill: parent
+        contentWidth: width
+        contentHeight: body.implicitHeight + 52
+        clip: true
+        ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+        ColumnLayout {
+            id: body
+            width: Math.min(page.width - 60, 1000)
+            anchors.horizontalCenter: parent.horizontalCenter
+            spacing: 18
+            Text { text: "导出结果"
+color: Theme.ink
+font.pixelSize: 25
+font.bold: true }
+            Text { Layout.fillWidth: true
+text: "将当前项目导出为标准 XLSX 或 ICS 文件，分别用于整理备份和导入手机日历。"
+color: Theme.inkSoft
+font.pixelSize: 13
+wrapMode: Text.WordWrap }
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 16
+                Rectangle {
+                    Layout.fillWidth: true
+Layout.preferredHeight: 208
+radius: Theme.radius
+color: Theme.surface
+border.color: Theme.border
+                    ColumnLayout {
+                        anchors.fill: parent
+anchors.margins: 20
+spacing: 9
+                        Text { text: "▤"
+color: Theme.accent
+font.pixelSize: 27 }
+                        Text { text: "Excel"
+color: Theme.ink
+font.pixelSize: 16
+font.bold: true }
+                        Text { Layout.fillWidth: true
+text: "导出课程、学期设置和节次时间，适合备份、批量整理和重新导入。"
+color: Theme.muted
+font.pixelSize: 12
+wrapMode: Text.WordWrap }
+                        Item { Layout.fillHeight: true }
+                        Button {
+                            enabled: appController.hasProject
+                            text: enabled ? "导出 Excel" : "请先打开项目"
+                            Layout.preferredWidth: 124
+Layout.preferredHeight: 36
+                            onClicked: excelSaveDialog.open()
+                            contentItem: Text { text: parent.text
+color: parent.enabled ? "white" : Theme.muted
+font.pixelSize: 12
+font.bold: true
+horizontalAlignment: Text.AlignHCenter
+verticalAlignment: Text.AlignVCenter }
+                            background: Rectangle { radius: 9
+color: parent.enabled ? Theme.accent : Theme.surfaceSoft
+border.color: Theme.border }
+                        }
+                    }
+                }
+                Rectangle {
+                    Layout.fillWidth: true
+Layout.preferredHeight: 208
+radius: Theme.radius
+color: Theme.surfaceSoft
+border.color: Theme.border
+opacity: 0.78
+                    ColumnLayout {
+                        anchors.fill: parent
+anchors.margins: 20
+spacing: 9
+                        Text { text: "◫"
+color: Theme.muted
+font.pixelSize: 27 }
+                        Text { text: "Apple 日历"
+color: Theme.ink
+font.pixelSize: 16
+font.bold: true }
+                        Text { Layout.fillWidth: true
+                            text: "生成可导入 iPhone / iPad 自带日历的 .ics 文件。"
+color: Theme.muted
+font.pixelSize: 12
+wrapMode: Text.WordWrap }
+                        Item { Layout.fillHeight: true }
+                        Button { text: appController.hasProject ? "导出 ICS" : "请先打开项目"
+enabled: appController.hasProject
+onClicked: icsSaveDialog.open()
+contentItem: Text { text: parent.text
+color: parent.enabled ? "white" : Theme.muted
+font.pixelSize: 12
+font.bold: true
+horizontalAlignment: Text.AlignHCenter
+verticalAlignment: Text.AlignVCenter }
+background: Rectangle { radius: 9
+color: parent.enabled ? Theme.accent : Theme.surfaceSoft
+border.color: Theme.border }
+Layout.preferredWidth: 124
+Layout.preferredHeight: 36 }
+                    }
+                }
+            }
+            Rectangle {
+                Layout.fillWidth: true
+Layout.preferredHeight: 96
+radius: Theme.radius
+color: Theme.surfaceGlass
+border.color: Theme.border
+                Text { anchors.fill: parent
+anchors.margins: 18
+text: "ICS 会按实际课程日期生成事件，支持每周、单周、双周和自定义周次。地点只写入你确认过的文本，不猜测经纬度，避免 Apple 日历把同名地点误定位。"
+color: Theme.inkSoft
+font.pixelSize: 12
+wrapMode: Text.WordWrap
+verticalAlignment: Text.AlignVCenter }
+            }
+        }
+    }
+}
+
