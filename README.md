@@ -73,7 +73,7 @@ src/scalendar/
 
 ## 用户数据与安全
 
-用户设置和项目文件应写入用户可写目录（例如 `%LOCALAPPDATA%\Scalendar`）或用户手动选择的目录，而不是写入 `Program Files`。API Key 仅接受当前运行会话内存中的值，不应被持久化到项目目录或系统级目录中。
+用户设置和项目文件应写入用户可写目录或用户手动选择的目录。API Key 仅接受当前运行会话内存中的值，不应被持久化到项目目录或系统级目录中。
 
 仓库会忽略用户图片、Excel、ICS、`.scalendar` 文件、虚拟环境、构建产物和秘密文件。发布流程说明见 [docs/release.md](docs/release.md)。
 
@@ -83,14 +83,14 @@ src/scalendar/
 | --- | --- |
 | M0 工程环境与最小窗口 | 已实现 |
 | M1 数据核心与项目读写 | 已实现 |
-| M2 UI 外壳与视觉方向 | 已完成，checkpoint `7d4a5b0036cc` |
-| M3 真实项目数据与手工课表编辑器 | 已完成，checkpoint `ee72e9343c13` |
-| M4 课程列表与时间设置增强 | 已完成，checkpoint `25abd66d180f` |
-| M5 图片识别 | 已完成，checkpoint `35c2a64` |
-| M6 Excel Import / Export | 已完成，checkpoint `bb3bcc080d48` |
-| M7 ICS Export | 已完成，checkpoint `132f0b7f0497` |
-| M8 Windows EXE / 发布流程 | 已完成，checkpoint `87b9ec36757c` |
-| M9 GitHub CI / 构建自动化 | 已完成，checkpoint `6a270d3eb788` |
+| M2 UI 外壳与视觉方向 | 已完成 |
+| M3 真实项目数据与手工课表编辑器 | 已完成 |
+| M4 课程列表与时间设置增强 | 已完成 |
+| M5 图片识别 | 已完成 |
+| M6 Excel Import / Export | 已完成 |
+| M7 ICS Export | 已完成 |
+| M8 Windows EXE / 发布流程 | 已完成 |
+| M9 GitHub CI / 构建自动化 | 已完成 |
 
 ## 备注
 
