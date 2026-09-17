@@ -31,6 +31,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: Scalendar-windows-x64
-          path: build/dist/Scalendar
+          path: build/release/Scalendar
           if-no-files-found: error
           retention-days: 14

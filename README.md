@@ -2,7 +2,7 @@
 
 Scalendar V1 是课表图片到日历的全新 Windows 桌面重写。它与旧测试版保持 Git 历史隔离：旧版基线仍在 `main` 与 `v0.0.0-test`，新版本只在 `rewrite/v1` 开发。
 
-当前交付范围是 Milestone 0–8：完成 Python/PySide6/QML 工程骨架、真实 `.scalendar` 项目生命周期、可编辑课程模型、课程列表多选批量操作、学期与节次设置、图片导入与 OpenAI Vision 结构化识别候选、标准 XLSX 导入/导出、面向 Apple 日历的 ICS 导出，以及可复现的 Windows 便携版 EXE 构建流程。推送和真实地图位置解析暂未实现，这是有意保留的后续阶段。
+当前 V1.0.0 交付范围是 Milestone 0–9：完成 Python/PySide6/QML 工程骨架、真实 `.scalendar` 项目生命周期、可编辑课程模型、课程列表多选批量操作、学期与节次设置、图片导入与 OpenAI Vision 结构化识别候选、标准 XLSX 导入/导出、面向 Apple 日历的 ICS 导出，以及可复现的 Windows 便携版 EXE 构建和 GitHub Actions 自动化。推送和真实地图位置解析暂未实现，这是有意保留的后续阶段。
 
 ## 开发环境
 
@@ -37,7 +37,7 @@ Windows 便携版构建使用：
 .\tools\build_windows.ps1
 ```
 
-产物位于 `build\dist\Scalendar\Scalendar.exe`，构建目录不会提交 Git。
+产物位于 `build\release\Scalendar\Scalendar.exe`，构建目录不会提交 Git。Windows 发布使用 Qt for Python 官方 `pyside6-deploy`，配置见 `pysidedeploy.spec`；构建脚本会验证 shiboken6、Qt plugins、QML 资源并启动 EXE 做冒烟测试。
 
 GitHub Actions：普通 push / pull request 会在 Windows runner 上运行测试；手动触发 `Windows package` 或推送版本 Tag 时，会生成短期保留的便携版构建产物。Actions 不会自动创建 Release，也不会替代用户确认后的发布流程。
 
@@ -78,4 +78,4 @@ src/scalendar/
 | M6 Excel Import / Export | 已完成，checkpoint `bb3bcc080d48` |
 | M7 ICS Export | 已完成，checkpoint `132f0b7f0497` |
 | M8 Windows EXE / 发布流程 | 已完成，checkpoint `87b9ec36757c` |
-| M9 GitHub CI / 构建自动化 | 已完成，待验收 |
+| M9 GitHub CI / 构建自动化 | 已完成，checkpoint `6a270d3eb788` |

@@ -23,6 +23,7 @@ htmlcov/
 build/
 dist/
 *.spec
+!pysidedeploy.spec
 
 # User-provided timetable files and generated calendars
 input/
