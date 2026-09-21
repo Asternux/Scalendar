@@ -1,6 +1,6 @@
 # Scalendar V1
 
-Scalendar V1 is a next-generation Windows desktop application for converting timetable images into calendar data. It is a complete rewrite based on the old test version and is kept Git-isolated from the historical version; the legacy baseline remains available in Git without affecting V1 development.
+**Scalendar V1** is a next-generation Windows desktop application for converting timetable images into calendar data. It is a complete rewrite based on the old test version and is kept Git-isolated from the historical version; the legacy baseline remains available in Git without affecting V1 development.
 
 The current V1.0.0 delivery scope covers Milestones 0–9, including the Python / PySide6 / QML project foundation, the complete `.scalendar` project lifecycle, an editable course model, multi-select batch operations in the course list, and calendar export workflows.
 
