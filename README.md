@@ -1,131 +1,98 @@
-# Scalendar
+# Scalendar V1
 
-## 课表日历助手 V2.1
+**Scalendar V1** is a next-generation Windows desktop application for converting timetable images into calendar data. It is a complete rewrite based on the old test version and is kept Git-isolated from the historical version; the legacy baseline remains available in Git without affecting V1 development.
 
-这是一个本地 Windows 桌面程序。它把课表图片识别为可编辑课程，允许核对教学周、每节课的真实时间和课程数量，最后生成 Excel 与 Apple Calendar 可导入的 `.ics` 文件。
+The current V1.0.0 delivery scope covers Milestones 0–9, including the Python / PySide6 / QML project foundation, the complete `.scalendar` project lifecycle, an editable course model, multi-select batch operations in the course list, and calendar export workflows.
 
-## 直接开始
+## Features
 
-双击 `课表日历助手.exe`。不需要打开 PowerShell，也不需要手动安装 Python。
+- Recognize timetable images and extract structured course data
+- Manage an editable course model and timetable data
+- Select multiple courses for batch editing, deletion, and schedule adjustments
+- Sort and filter courses by weekday, period, or course name
+- Use `.scalendar` project files as the single source of truth
+- Import/export Excel files and export ICS calendars
+- Provide a Windows desktop application and portable release workflow
+- Include automated tests and CI build checks
 
-程序启动后会先显示简洁主页，其中包含制作初衷、基本流程和一个醒目的“开始”按钮。点击“开始”后直接进入图片识别页。
+## Development Environment
 
-推荐流程：
+- Python 3.11+
+- PySide6 6.8+
+- Windows 10 / 11 (target platform)
 
-1. 在“图片识别”拖入课表图片，或点击选择图片。
-2. 输入 OpenAI API Key 并开始识别。Key 只保存在本次运行的内存中，不写入设置文件。
-3. 在“课程编辑”逐行检查课程。可以添加课程、双击编辑、按 Ctrl/Shift 多选后批量编辑或删除。
-4. 在“学期与节次”直接修改第一教学周周一、学期结束日期和每一节真实时间。
-5. 在“导出结果”生成 `timetable.xlsx` 与 `timetable.ics`，完成后直接打开输出文件夹或文件。
-
-输出默认保存在程序旁的 `output` 文件夹：
-
-- `output/timetable.xlsx`
-- `output/timetable.ics`
-
-## 日期怎么填写
-
-“第一教学周周一”是可直接编辑的字段，不再由月份自动猜测。
-
-如果只知道某个日期对应第几教学周，也可以使用下面的辅助计算。例如，`2026-09-14` 是第 3 教学周的周一：
-
-```text
-已知某周的周一：2026-09-14
-这是第几教学周：3
-```
-
-点击“自动计算并填入”，程序会得到：
-
-```text
-第一教学周周一：2026-08-31
-```
-
-输入的参考日期必须是周一。导出前程序会再次检查日期是否合法。
-
-## 节次数量和时间
-
-程序默认显示 12 节示例时间，但这些时间不代表任何学校的作息，使用前应按学校实际时间修改。
-
-- 开始时间和结束时间均可直接编辑。
-- 点击“添加节次”可以增加第 13 节、第 14 节等。
-- 勾选多节后可以批量平移时间或删除，删除后会自动连续编号。
-- “全选/取消”用于快速选择全部节次。
-- 页面可以纵向滚动，因此较小窗口也能访问全部节次和底部按钮。
-
-如果课程使用了尚未设置的节次，程序会阻止导出并明确指出是哪门课程。
-
-## 课程数量和批量编辑
-
-识别结果不是固定数量。课程编辑页支持：
-
-- “添加课程”新增任意课程。
-- 双击一行或点击“编辑所选”修改单门课程。
-- 按住 Ctrl 或 Shift 选择多行，再点击“批量编辑”，只修改勾选的字段。
-- 多选后批量删除课程。
-- 顶部实时显示当前课程数量。
-
-## 外观设置
-
-“外观设置”会保存在 `temp/ui_settings.json`：
-
-- 浅色、深色或跟随系统。
-- 透明磨砂开关。Windows 11 会优先使用系统 Acrylic；不支持时使用窗口透明度作为回退。
-- “窗口不透明度”滑杆，可在 80%～100% 之间调整背景透过程度。
-- “磨砂强度”滑杆：0% 关闭背景材质，低、中、高档在 Windows 11 上分别使用 Mica、Mica Alt 和 Desktop Acrylic。
-
-界面不再使用主页转场、悬停缩放或弹跳效果，也不再提供界面缩放选项。
-
-窗口带有合理的最小尺寸；导入页在窄宽度下会自动从双栏变为单栏，长页面提供滚动条，按钮工具栏也采用可收缩布局。
-
-快捷键：`Ctrl+1` 打开图片识别，`Ctrl+2` 打开课程编辑，`Ctrl+3` 打开学期与节次，`Ctrl+4` 打开导出结果，`Esc` 返回主页。
-
-## 加载已有 Excel
-
-“图片识别”页可以加载先前生成的 `timetable.xlsx`。课程、学期日期、提醒、时区、节次数量和全部节次时间都会回到界面中继续编辑。
-
-也可以用 Excel、WPS 或 Numbers 打开工作簿直接修改。`Courses` 保存课程，`Settings` 保存日期和动态节次设置。不要修改表头名称或删除这两个工作表。
-
-## Apple 日历导入
-
-`timetable.ics` 中每个实际上课日期都是独立事件，支持普通周、单周、双周和指定周。时间按设置的时区转换，导入 Apple Calendar 后会按设备时区显示。
-
-建议在 Apple Calendar 中新建一个单独日历后再导入，之后需要撤销时可以整体删除该日历。
-
-## 识别注意事项
-
-- 图片模糊、裁切、复杂底色、重叠文字或学校特有标记都可能影响识别。
-- 识别完成后不会立即导出，必须先人工检查课程、教学周和真实时间。
-- API Key 不会保存；下次打开程序需要重新输入，也可以使用系统环境变量 `OPENAI_API_KEY`。
-
-## 开发与命令行方式
-
-源码入口是 `app.py`。如果不使用打包版，可双击 `启动课表工具.bat`；当同目录存在 EXE 时，启动器会优先打开 EXE。
-
-手动运行：
+Using the virtual environment included with the project is recommended for development. Neither the application nor its tests require end users to use PowerShell as their only entry point; PowerShell is mainly used for development and build workflows.
 
 ```powershell
 python -m venv .venv
-.venv\Scripts\python.exe -m pip install -r requirements.txt
-.venv\Scripts\python.exe app.py
+.\.venv\Scripts\Activate.ps1
+python -m pip install -e ".[test]"
 ```
 
-单独运行图片识别和转换脚本：
+## Running and Testing
 
 ```powershell
-.venv\Scripts\python.exe image_to_excel.py input\timetable.png
-.venv\Scripts\python.exe excel_to_ics.py output\timetable.xlsx
+python -m scalendar.main
+pytest
 ```
 
-运行不调用 OpenAI API 的测试：
+After installing the project, you can also run it directly:
 
 ```powershell
-.venv\Scripts\python.exe -m unittest discover -s tests -v
+scalendar
 ```
 
-## 文件说明
+Build the Windows portable version:
 
-- `课表日历助手.exe`：直接双击运行的 Windows 程序。
-- `app.py`：图形界面、主题、交互和编辑逻辑。
-- `image_to_excel.py`：图片识别、JSON 校验和 Excel 生成。
-- `excel_to_ics.py`：Excel 到 ICS 的确定性转换。
-- `tests/test_workflow.py`：日期、批量编辑、动态节次和端到端测试。
+```powershell
+.\tools\build_windows.ps1
+```
+
+The build output is located at `build\release\Scalendar\Scalendar.exe`. Build directories are not committed to Git. The Windows release workflow uses Qt for Python's official `pyside6-deploy`; its configuration is stored in `pysidedeploy.spec`.
+
+GitHub Actions automatically runs the regular push and pull request test suite on a Windows runner. Manually triggering the `Windows package` workflow, or pushing a version tag, produces a portable build artifact retained for a short period.
+
+After starting the GUI, the Home page is displayed. Users can create a blank timetable, add/edit/delete courses, synchronize edits between the timetable and course list, sort by weekday/period/name, and apply batch changes to multiple selected courses.
+
+## Architecture
+
+```text
+src/scalendar/
+├── main.py                 # Qt application entry point
+├── core/                   # Pure data models, validation, and timetable date calculations
+├── storage/                # .scalendar JSON project read/write
+├── recognition/            # Image-recognition providers and candidate-result normalization
+├── importers/              # Excel input adapters and external spreadsheet compatibility layer
+├── exporters/              # XLSX / ICS output adapters
+├── bridge/                 # Python–QML controller boundary
+├── ui/                     # Qt Quick / QML pages, components, and theme
+└── tests/                  # Automated tests
+```
+
+Project files use UTF-8 encoded JSON and the `.scalendar` extension. They are the single source of truth. Excel is an import/export format for review and exchange, not the internal source of truth. Recognition results should be reviewed and edited by the user before they are used or exported.
+
+## User Data and Security
+
+User settings and project files should be stored in a user-writable directory or a directory selected manually by the user. API keys are accepted only as in-memory values for the current session and should not be persisted in the project directory or a system-wide directory.
+
+The repository ignores user images, Excel files, ICS files, `.scalendar` files, virtual environments, build artifacts, and secret files. See [docs/release.md](docs/release.md) for release workflow details.
+
+## Milestone Status
+
+| Milestone | Status |
+| --- | --- |
+| M0 Project environment and minimal window | Implemented |
+| M1 Data core and project read/write | Implemented |
+| M2 UI shell and visual direction | Complete |
+| M3 Real project data and manual timetable editor | Complete |
+| M4 Course list and time-setting enhancements | Complete |
+| M5 Image recognition | Complete |
+| M6 Excel import / export | Complete |
+| M7 ICS export | Complete |
+| M8 Windows EXE / release workflow | Complete |
+| M9 GitHub CI / build automation | Complete |
+
+## Notes
+
+- This is the rewritten V1 version; the history of the old version remains in Git and does not affect new-version development.
+- Future documentation improvements may include a quick-start example, screenshots, a FAQ, a feature roadmap, and contribution guidelines.

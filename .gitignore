@@ -2,8 +2,10 @@
 .env
 .env.*
 !.env.example
+secrets/
+local/
 
-# Python environments and caches
+# Python environments, caches, and packaging output
 .venv/
 venv/
 env/
@@ -18,12 +20,17 @@ __pycache__/
 .hypothesis/
 .coverage
 htmlcov/
+build/
+dist/
+*.spec
+!pysidedeploy.spec
 
 # User-provided timetable files and generated calendars
-input/*
-!input/README.txt
-output/*
-!output/.gitkeep
+input/
+output/
+temp/
+*.scalendar
+*.scalendar.tmp
 *.png
 *.jpg
 *.jpeg
@@ -34,13 +41,7 @@ output/*
 *.xls
 *.ics
 
-# Temporary and build artifacts
-temp/*
-!temp/.gitkeep
-build/
-dist/
-*.spec
-*.exe
+# Runtime and temporary files
 *.log
 *.tmp
 *.temp
